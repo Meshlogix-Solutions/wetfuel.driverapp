@@ -11,11 +11,10 @@ import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, Io
 <ion-content [fullscreen]="true">
   <div class="auth-page">
     <div class="auth-wrap">
-      <div class="brand-mark"><div class="brand-drop"><span>WF</span></div><span>WetFuel Driver</span></div>
+      <div class="brand-mark"><img src="/wetfuel-logo.webp" alt="WetFuel" class="brand-logo"></div>
       <ion-card class="auth-card">
         <ion-card-content class="stack">
           <div>
-            <span class="pill success">Driver access</span>
             <h1>Welcome back</h1>
             <p class="page-lead">Sign in to see today's route, complete inspections and record deliveries.</p>
           </div>
@@ -23,9 +22,7 @@ import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, Io
           <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
           <ion-button class="wf-button" expand="block" routerLink="/dashboard">Sign in securely</ion-button>
-          <ion-button class="wf-button wf-secondary" expand="block" routerLink="/verification">Sign in with SMS code</ion-button>
-          <p class="caption text-center">Tenant: WetFuel Dallas North · WF-001</p>
-        </ion-card-content>
+         </ion-card-content>
       </ion-card>
     </div>
   </div>

@@ -10,8 +10,7 @@ import { IonContent, IonButton } from '@ionic/angular/standalone';
 <ion-content [fullscreen]="true">
   <div class="splash-page">
     <div>
-      <div class="splash-logo"><span>WF</span></div>
-      <h1>WetFuel</h1>
+      <img src="/wetfuel-logo.webp" alt="WetFuel" class="splash-logo">
       <p>Safe, connected fuel delivery.<br>Built for drivers in the field.</p>
       <div style="height:20px"></div>
       <ion-button class="wf-button" color="tertiary" expand="block" routerLink="/login">Start Driver App →</ion-button>

@@ -11,7 +11,7 @@ import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton } fro
 <ion-content [fullscreen]="true">
   <div class="auth-page">
     <div class="auth-wrap">
-      <div class="brand-mark"><div class="brand-drop"><span>WF</span></div><span>WetFuel Driver</span></div>
+      <div class="brand-mark"><img src="/wetfuel-logo.webp" alt="WetFuel" class="brand-logo"></div>
       <ion-card class="auth-card">
         <ion-card-content class="stack">
           <div>
