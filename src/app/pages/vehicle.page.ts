@@ -39,6 +39,14 @@ export class VehiclePage {
   get vehicles() { return this.state.vehicles(); }
   selected = this.state.selectedVehicleId() ?? this.vehicles[0]?.id ?? '';
   constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  async ionViewWillEnter(): Promise<void> {
+    try {
+      await this.state.refresh();
+      if (!this.selected) this.selected = this.vehicles[0]?.id ?? '';
+    } catch {
+      // Keep cached vehicles available while offline.
+    }
+  }
   inventoryPercent(inventory: number, capacity: number): number {
     return capacity > 0 ? Math.round((inventory / capacity) * 100) : 0;
   }

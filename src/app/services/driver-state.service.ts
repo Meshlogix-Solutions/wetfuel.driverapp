@@ -238,7 +238,10 @@ export class DriverStateService {
     this.recentDeliveries.set(bootstrap.recentDeliveries);
     this.activeShift.set(bootstrap.activeShift);
     this.shifts.set(bootstrap.shifts);
-    this.selectedVehicleId.set(bootstrap.activeShift?.vehicleId ?? null);
+    this.selectedVehicleId.set(
+      bootstrap.activeShift?.vehicleId
+        ?? bootstrap.profile.assignedVehicleId
+        ?? null);
   }
 
   private persistQueue(): void {

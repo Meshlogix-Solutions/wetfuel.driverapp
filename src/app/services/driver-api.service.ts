@@ -14,6 +14,8 @@ export interface DriverProfile {
   shiftStatus: string;
   license: { type: string; number: string; state: string; expiryDate: string };
   certifications: Array<{ id: string; name: string; expiryDate: string; status: string }>;
+  assignedVehicleId?: string;
+  assignedVehicleName?: string;
   hoursThisWeek: number;
 }
 
