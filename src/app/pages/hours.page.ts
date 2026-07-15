@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { IonCard, IonCardContent, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverStateService } from '../services/driver-state.service';
 
 @Component({
   selector: 'app-hours',
@@ -12,8 +13,8 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
     <ion-card class="wf-card hero-card">
       <ion-card-content>
         <span class="pill dark">Jun 29 – Jul 5</span>
-        <h2 style="font-size:42px;margin:18px 0 4px;letter-spacing:-.05em">34h 18m</h2>
-        <p class="caption" style="margin:0">5h 42m remaining to 40 hours</p>
+        <h2 style="font-size:42px;margin:18px 0 4px;letter-spacing:-.05em">{{ state.profile()?.hoursThisWeek ?? 0 }}h</h2>
+        <p class="caption" style="margin:0">{{ remainingHours }}h remaining to 40 hours</p>
         <div style="height:15px"></div>
         <div class="progress-track orange"><span style="width:86%"></span></div>
       </ion-card-content>
@@ -41,5 +42,8 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `
 })
 export class HoursPage {
-
+  constructor(readonly state: DriverStateService) {}
+  get remainingHours(): number {
+    return Math.max(0, Math.round((40 - (this.state.profile()?.hoursThisWeek ?? 0)) * 10) / 10);
+  }
 }

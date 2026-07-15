@@ -26,8 +26,7 @@ import { DriverStateService } from '../services/driver-state.service';
       </ion-card-content>
     </ion-card>
 
-    <ion-card class="wf-card"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="water-outline"></ion-icon></div><div class="grow"><strong>Fueling event · WF-2048</strong><p class="caption" style="margin:4px 0 0">Photos, GPS and meter transaction</p></div><span class="pill warning">Queued</span></ion-card-content></ion-card>
-    <ion-card class="wf-card"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="location-outline"></ion-icon></div><div class="grow"><strong>Route GPS points</strong><p class="caption" style="margin:4px 0 0">58 location records</p></div><span class="pill warning">Queued</span></ion-card-content></ion-card>
+    <ion-card *ngIf="state.syncPending() > 0" class="wf-card"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="water-outline"></ion-icon></div><div class="grow"><strong>Driver activity · {{ state.selectedJob()?.jobNumber || 'shift' }}</strong><p class="caption" style="margin:4px 0 0">{{ state.syncPending() }} encrypted event(s) waiting for the server</p></div><span class="pill warning">Queued</span></ion-card-content></ion-card>
     <ion-card class="wf-card"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="time-outline"></ion-icon></div><div class="grow"><strong>Shift activity</strong><p class="caption" style="margin:4px 0 0">Clock-in and job timestamps</p></div><span class="pill success">Synced</span></ion-card-content></ion-card>
 
     <ion-button class="wf-button" expand="block" (click)="state.clearSync()">Sync all now</ion-button>

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonSegment, IonSegmentButton, IonLabel, IonCard, IonCardContent, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
-import { JOBS } from '../data/mock-data';
+import { DriverStateService } from '../services/driver-state.service';
 
 @Component({
   selector: 'app-jobs',
@@ -35,16 +35,18 @@ import { JOBS } from '../data/mock-data';
       </ion-card-content>
     </ion-card>
 
-    <ion-card *ngFor="let job of visibleJobs" class="wf-card" [routerLink]="job.status === 'Completed' ? '/history' : '/job-details'">
+    <ion-card *ngFor="let job of visibleJobs" class="wf-card"
+      [routerLink]="job.status === 'completed' ? '/history' : '/job-details'"
+      (click)="state.selectJob(job.id)">
       <ion-card-content>
         <div class="row-between">
-          <span class="pill" [class.success]="job.status === 'Completed'" [class.warning]="job.status === 'Next'">{{ job.status }}</span>
-          <strong>{{ job.id }}</strong>
+          <span class="pill" [class.success]="job.status === 'completed'" [class.warning]="job.status === 'next'">{{ statusLabel(job.status) }}</span>
+          <strong>{{ job.jobNumber }}</strong>
         </div>
-        <h3>{{ job.customer }}</h3>
-        <p class="caption">{{ job.site }}</p>
-        <div class="detail-row"><span>{{ job.time }}</span><strong>{{ job.gallons }} gal</strong></div>
-        <div class="row-between" style="padding-top:10px"><span class="caption">{{ job.fuel }} · {{ job.distance }}</span><ion-icon name="chevron-forward-outline"></ion-icon></div>
+        <h3>{{ job.customerName }}</h3>
+        <p class="caption">{{ job.siteAddress }}</p>
+        <div class="detail-row"><span>{{ job.scheduledAt | date:'shortTime' }}</span><strong>{{ job.targetGallons }} gal</strong></div>
+        <div class="row-between" style="padding-top:10px"><span class="caption">{{ job.fuelType }} · {{ job.distanceMiles ?? '—' }} mi</span><ion-icon name="chevron-forward-outline"></ion-icon></div>
       </ion-card-content>
     </ion-card>
 
@@ -54,8 +56,19 @@ import { JOBS } from '../data/mock-data';
   `
 })
 export class JobsPage {
-  readonly jobs = JOBS;
   readonly filters = ['All', 'Assigned', 'Completed'];
   activeFilter = 'All';
-  get visibleJobs() { return this.activeFilter === 'All' ? this.jobs : this.jobs.filter(job => job.status === this.activeFilter); }
+  constructor(readonly state: DriverStateService) {}
+  ionViewWillEnter(): void {
+    void this.state.refresh().catch(() => undefined);
+  }
+  get visibleJobs() {
+    const jobs = this.state.jobs();
+    if (this.activeFilter === 'All') return jobs;
+    return jobs.filter(job => job.status === this.activeFilter.toLowerCase());
+  }
+  statusLabel(status: string): string {
+    const value = status.replace('_', ' ');
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
 }

@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverStateService } from '../services/driver-state.service';
 
 @Component({
   selector: 'app-delivery-proof',
@@ -48,6 +49,11 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 </wf-mobile-shell>
   `
 })
-export class DeliveryProofPage {
+export class DeliveryProofPage implements OnInit {
   notes = 'Delivery completed safely. Generator tank and surrounding area inspected.';
+  constructor(private readonly state: DriverStateService) {}
+  ngOnInit(): void {
+    const job = this.state.selectedJob();
+    if (job) this.state.updateJob(job.id, 'proof_pending');
+  }
 }

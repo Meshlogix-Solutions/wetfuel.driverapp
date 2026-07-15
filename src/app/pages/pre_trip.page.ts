@@ -7,6 +7,8 @@ import {
 } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { INSPECTION_ITEMS } from '../data/mock-data';
+import { DriverStateService } from '../services/driver-state.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-pre-trip',
@@ -50,7 +52,7 @@ import { INSPECTION_ITEMS } from '../data/mock-data';
       <div class="photo-box">＋<br>Add meter photo</div>
     </div>
 
-    <ion-button class="wf-button" expand="block" [disabled]="completedCount !== items.length" [routerLink]="completedCount === items.length ? '/jobs' : null">Submit inspection</ion-button>
+    <ion-button class="wf-button" expand="block" [disabled]="completedCount !== items.length" (click)="submit()">Submit inspection</ion-button>
   </main>
 </wf-mobile-shell>
   `
@@ -60,4 +62,12 @@ export class PreTripPage {
   checks = this.items.map(() => false);
   get completedCount(): number { return this.checks.filter(Boolean).length; }
   get progress(): number { return Math.round((this.completedCount / this.items.length) * 100); }
+  constructor(private readonly state: DriverStateService, private readonly router: Router) {}
+  submit(): void {
+    const vehicleId = this.state.selectedVehicleId();
+    if (!vehicleId || this.completedCount !== this.items.length) return;
+    const checklist = Object.fromEntries(this.items.map((item, index) => [item[0], this.checks[index]]));
+    this.state.submitInspection(vehicleId, checklist);
+    void this.router.navigateByUrl('/jobs');
+  }
 }

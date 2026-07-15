@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, IonButton } from '@ionic/angular/standalone';
+import { DriverAuthService } from '../services/driver-auth.service';
 
 @Component({
   selector: 'app-login',
@@ -21,7 +22,7 @@ import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, Io
           <ion-item><ion-input label="Email or phone" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
           <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
-          <ion-button class="wf-button" expand="block" routerLink="/dashboard">Sign in securely</ion-button>
+          <ion-button class="wf-button" expand="block" (click)="login()">Sign in securely</ion-button>
          </ion-card-content>
       </ion-card>
     </div>
@@ -32,4 +33,6 @@ import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, Io
 export class LoginPage {
   identity = 'dave@wetfuel.com';
   password = '';
+  constructor(private readonly auth: DriverAuthService) {}
+  login(): void { void this.auth.login(); }
 }

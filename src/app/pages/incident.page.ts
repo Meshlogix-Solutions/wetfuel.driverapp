@@ -7,6 +7,8 @@ import {
   IonSelectOption, IonTextarea, IonCheckbox, IonButton
 } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverStateService } from '../services/driver-state.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-incident',
@@ -48,7 +50,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
         <ion-item lines="none"><ion-checkbox slot="start"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Supervisor has been contacted</strong><p class="caption">Franchise admin will receive an urgent alert.</p></ion-label></ion-item>
       </ion-card-content>
     </ion-card>
-    <ion-button class="wf-button" color="tertiary" expand="block">Submit incident report</ion-button>
+    <ion-button class="wf-button" color="tertiary" expand="block" (click)="submit()">Submit incident report</ion-button>
     <ion-button class="wf-button wf-secondary" expand="block" routerLink="/dashboard">Save offline and return</ion-button>
   </main>
 </wf-mobile-shell>
@@ -59,4 +61,14 @@ export class IncidentPage {
   incidentType = 'Spill';
   severity = 'Minor — contained, no injury';
   description = '';
+  constructor(private readonly state: DriverStateService, private readonly router: Router) {}
+  submit(): void {
+    this.state.reportIncident({
+      jobId: this.state.selectedJob()?.id,
+      incidentType: this.incidentType,
+      severity: this.severity,
+      description: this.description,
+    });
+    void this.router.navigateByUrl('/dashboard');
+  }
 }

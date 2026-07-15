@@ -1,17 +1,16 @@
-import { Component } from '@angular/core';
+import { Component, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
-import { JOBS } from '../data/mock-data';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterLink, MobileShellComponent, IonCard, IonCardContent, IonButton, IonIcon],
   template: `
-<wf-mobile-shell title="Good morning, Dave" subtitle="Friday · July 3" [showNav]="true">
+<wf-mobile-shell [title]="'Good morning, ' + (state.profile()?.firstName ?? 'Driver')" subtitle="Today" [showNav]="true">
   <main class="screen-body stack">
     <ion-card class="wf-card hero-card">
       <ion-card-content>
@@ -30,8 +29,8 @@ import { JOBS } from '../data/mock-data';
     </ion-card>
 
     <section class="grid-3">
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Today's jobs</span><strong>5</strong><span class="pill success">1 complete</span></ion-card-content></ion-card>
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Planned gallons</span><strong>1,280</strong><span class="caption">gal</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Today's jobs</span><strong>{{ state.jobs().length }}</strong><span class="pill success">{{ completedJobs() }} complete</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Planned gallons</span><strong>{{ plannedGallons() }}</strong><span class="caption">gal</span></ion-card-content></ion-card>
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Pending sync</span><strong>{{ state.syncPending() }}</strong><a routerLink="/sync" class="caption">Review</a></ion-card-content></ion-card>
     </section>
 
@@ -39,17 +38,17 @@ import { JOBS } from '../data/mock-data';
       <div class="row-between"><h2 class="section-title">Next delivery</h2><a routerLink="/jobs" class="caption">View all</a></div>
       <ion-card class="wf-card">
         <ion-card-content>
-          <div class="row-between"><span class="pill warning">Next · 9:15 AM</span><strong>{{ jobs[0].id }}</strong></div>
-          <h2 style="margin:15px 0 5px">{{ jobs[0].customer }}</h2>
-          <p class="caption">{{ jobs[0].site }}</p>
+          <div class="row-between"><span class="pill warning">Next</span><strong>{{ nextJob()?.jobNumber ?? 'No job' }}</strong></div>
+          <h2 style="margin:15px 0 5px">{{ nextJob()?.customerName ?? 'No delivery assigned' }}</h2>
+          <p class="caption">{{ nextJob()?.siteAddress ?? 'Check back for assignments.' }}</p>
           <hr class="divider">
           <div class="grid-3">
-            <div><span class="caption">Fuel</span><strong style="display:block;margin-top:4px">{{ jobs[0].fuel }}</strong></div>
-            <div><span class="caption">Target</span><strong style="display:block;margin-top:4px">{{ jobs[0].gallons }} gal</strong></div>
-            <div><span class="caption">Distance</span><strong style="display:block;margin-top:4px">{{ jobs[0].distance }}</strong></div>
+            <div><span class="caption">Fuel</span><strong style="display:block;margin-top:4px">{{ nextJob()?.fuelType ?? '—' }}</strong></div>
+            <div><span class="caption">Target</span><strong style="display:block;margin-top:4px">{{ nextJob()?.targetGallons ?? 0 }} gal</strong></div>
+            <div><span class="caption">Distance</span><strong style="display:block;margin-top:4px">{{ nextJob()?.distanceMiles ?? '—' }} mi</strong></div>
           </div>
           <div style="height:14px"></div>
-          <ion-button class="wf-button" expand="block" routerLink="/job-details">View job details</ion-button>
+          <ion-button class="wf-button" expand="block" routerLink="/job-details" [disabled]="!nextJob()" (click)="nextJob() && state.selectJob(nextJob()!.id)">View job details</ion-button>
         </ion-card-content>
       </ion-card>
     </section>
@@ -67,6 +66,11 @@ import { JOBS } from '../data/mock-data';
 })
 export class DashboardPage {
   readonly state: DriverStateService;
-  readonly jobs = JOBS;
+  readonly completedJobs = computed(() => state.jobs().filter(job => job.status === 'completed').length);
+  readonly plannedGallons = computed(() => state.jobs().reduce((sum, job) => sum + Number(job.targetGallons), 0));
+  readonly nextJob = computed(() => state.jobs().find(job => !['completed', 'cancelled'].includes(job.status)) ?? null);
   constructor(state: DriverStateService) { this.state = state; }
+  ionViewWillEnter(): void {
+    void this.state.refresh().catch(() => undefined);
+  }
 }

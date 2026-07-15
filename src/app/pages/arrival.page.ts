@@ -2,13 +2,15 @@ import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonItem, IonCheckbox, IonLabel, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverStateService } from '../services/driver-state.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-arrival',
   standalone: true,
   imports: [RouterLink, MobileShellComponent, IonCard, IonCardContent, IonIcon, IonItem, IonCheckbox, IonLabel, IonButton],
   template: `
-<wf-mobile-shell title="Site arrival" subtitle="Riverside Construction" backRoute="/route-map">
+<wf-mobile-shell title="Site arrival" [subtitle]="state.selectedJob()?.customerName || 'Customer site'" backRoute="/route-map">
   <main class="screen-body stack">
     <section class="map-mock">
       <div class="map-pin driver-pin" style="left:48%;top:38%"><span>●</span></div>
@@ -31,11 +33,16 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
         </ion-item>
       </ion-card-content>
     </ion-card>
-    <ion-button class="wf-button" color="tertiary" expand="block" routerLink="/qr-scanner">Check in and scan equipment</ion-button>
+    <ion-button class="wf-button" color="tertiary" expand="block" (click)="arrive()">Check in and scan equipment</ion-button>
   </main>
 </wf-mobile-shell>
   `
 })
 export class ArrivalPage {
-
+  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  arrive(): void {
+    const job = this.state.selectedJob();
+    if (job) this.state.updateJob(job.id, 'arrived');
+    void this.router.navigateByUrl('/qr-scanner');
+  }
 }

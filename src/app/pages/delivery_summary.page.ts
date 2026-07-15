@@ -15,27 +15,23 @@ import { DriverStateService } from '../services/driver-state.service';
       <ion-card-content>
         <div class="success-orb"><ion-icon name="checkmark-circle-outline"></ion-icon></div>
         <span class="pill success">Ready to complete</span>
-        <h2 style="margin:14px 0 5px">Riverside Construction</h2>
-        <p class="caption">Generator GEN-04 · Job WF-2048</p>
+        <h2 style="margin:14px 0 5px">{{ state.selectedJob()?.customerName || 'Delivery' }}</h2>
+        <p class="caption">{{ state.selectedJob()?.equipmentName || 'Equipment' }} · Job {{ state.selectedJob()?.jobNumber }}</p>
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card">
       <ion-card-content>
-        <div class="detail-row"><span>Delivered volume</span><strong>186.0 gal</strong></div>
-        <div class="detail-row"><span>Fuel price</span><strong>$3.485 / gal</strong></div>
-        <div class="detail-row"><span>Fuel subtotal</span><strong>$648.21</strong></div>
-        <div class="detail-row"><span>Taxes and fees</span><strong>$72.42</strong></div>
-        <hr class="divider">
-        <div class="row-between" style="font-size:20px"><strong>Delivery total</strong><strong>$720.63</strong></div>
+        <div class="detail-row"><span>Delivered volume</span><strong>{{ state.deliveredGallons() || state.selectedJob()?.targetGallons || 0 }} gal</strong></div>
+        <div class="detail-row"><span>Fuel type</span><strong>{{ state.selectedJob()?.fuelType || '—' }}</strong></div>
+        <div class="detail-row"><span>Site</span><strong>{{ state.selectedJob()?.siteName || '—' }}</strong></div>
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card">
       <ion-card-content>
         <div class="timeline">
-          <div class="timeline-item"><strong>Arrived at site</strong><p class="caption">9:05 AM · GPS verified</p></div>
-          <div class="timeline-item"><strong>Fueling started</strong><p class="caption">9:10 AM · LCR-II connected</p></div>
-          <div class="timeline-item"><strong>Fueling completed</strong><p class="caption">9:18 AM · 186.0 gallons</p></div>
-          <div class="timeline-item"><strong>Proof collected</strong><p class="caption">2 photos · Driver checklist complete</p></div>
+          <div class="timeline-item"><strong>Arrived at site</strong><p class="caption">GPS arrival recorded</p></div>
+          <div class="timeline-item"><strong>Fueling completed</strong><p class="caption">{{ state.deliveredGallons() || state.selectedJob()?.targetGallons || 0 }} gallons</p></div>
+          <div class="timeline-item"><strong>Proof collected</strong><p class="caption">Delivery proof ready for sync</p></div>
         </div>
       </ion-card-content>
     </ion-card>
@@ -46,6 +42,15 @@ import { DriverStateService } from '../services/driver-state.service';
   `
 })
 export class DeliverySummaryPage {
-  constructor(private readonly state: DriverStateService, private readonly router: Router) {}
-  complete(): void { this.state.syncPending.update(value => value + 1); void this.router.navigateByUrl('/jobs'); }
+  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  complete(): void {
+    const job = this.state.selectedJob();
+    if (job) {
+      this.state.completeDelivery(job.id, this.state.deliveredGallons() || job.targetGallons, {
+        notes: 'Delivery completed safely.',
+        proof: { meterPhotoCaptured: true, equipmentPhotoCaptured: true },
+      });
+    }
+    void this.router.navigateByUrl('/jobs');
+  }
 }

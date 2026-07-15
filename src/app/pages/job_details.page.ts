@@ -2,25 +2,27 @@ import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverStateService } from '../services/driver-state.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-job-details',
   standalone: true,
   imports: [RouterLink, MobileShellComponent, IonCard, IonCardContent, IonButton, IonIcon],
   template: `
-<wf-mobile-shell title="Job WF-2048" subtitle="Next delivery" backRoute="/jobs">
+<wf-mobile-shell [title]="'Job ' + (state.selectedJob()?.jobNumber ?? '')" subtitle="Next delivery" backRoute="/jobs">
   <main class="screen-body stack">
     <ion-card class="wf-card hero-card">
       <ion-card-content>
         <span class="pill dark">Scheduled · 9:15 AM</span>
-        <h1 style="margin:16px 0 5px;font-size:28px">Riverside Construction</h1>
-        <p class="caption" style="margin:0">4180 Ridgeway Rd, Dallas, TX</p>
+        <h1 style="margin:16px 0 5px;font-size:28px">{{ state.selectedJob()?.customerName }}</h1>
+        <p class="caption" style="margin:0">{{ state.selectedJob()?.siteAddress }}</p>
       </ion-card-content>
     </ion-card>
     <section class="grid-3">
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Target</span><strong>250</strong><span class="caption">gallons</span></ion-card-content></ion-card>
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Fuel</span><strong style="font-size:18px">Diesel</strong><span class="caption">ULSD</span></ion-card-content></ion-card>
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Equipment</span><strong style="font-size:18px">GEN-04</strong><span class="caption">Generator</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Target</span><strong>{{ state.selectedJob()?.targetGallons ?? 0 }}</strong><span class="caption">gallons</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Fuel</span><strong style="font-size:18px">{{ state.selectedJob()?.fuelType }}</strong><span class="caption">Fuel</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Equipment</span><strong style="font-size:18px">{{ state.selectedJob()?.equipmentCode ?? '—' }}</strong><span class="caption">{{ state.selectedJob()?.equipmentType ?? 'Equipment' }}</span></ion-card-content></ion-card>
     </section>
     <ion-card class="wf-card">
       <ion-card-content class="stack">
@@ -37,11 +39,16 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card warning-card"><ion-card-content><strong>Safety note</strong><p class="caption" style="margin:6px 0 0">Overhead clearance is limited near the generator pad. Approach from the south side.</p></ion-card-content></ion-card>
-    <ion-button class="wf-button" color="tertiary" expand="block" routerLink="/route-map">Start job and navigate</ion-button>
+    <ion-button class="wf-button" color="tertiary" expand="block" (click)="startJob()">Start job and navigate</ion-button>
   </main>
 </wf-mobile-shell>
   `
 })
 export class JobDetailsPage {
-
+  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  startJob(): void {
+    const job = this.state.selectedJob();
+    if (job) this.state.updateJob(job.id, 'started');
+    void this.router.navigateByUrl('/route-map');
+  }
 }
