@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { User, UserManager } from 'oidc-client-ts';
 import { environment } from '../../environments/environment';
 
@@ -11,14 +12,13 @@ export class DriverAuthService {
     post_logout_redirect_uri: `${window.location.origin}/login`,
     scope: 'openid profile email offline_access',
     response_type: 'code',
-    useRefreshToken: true,
     automaticSilentRenew: true,
   });
 
-  constructor() {
+  constructor(private readonly router: Router) {
     this.manager.events.addUserLoaded(user => this.storeToken(user));
     this.manager.events.addUserUnloaded(() => this.clearToken());
-    this.manager.events.addAccessTokenExpired(() => this.clearToken());
+    this.manager.events.addAccessTokenExpired(() => this.expireSession());
   }
 
   async user(): Promise<User | null> {
@@ -48,6 +48,14 @@ export class DriverAuthService {
   async logout(): Promise<void> {
     this.clearToken();
     await this.manager.signoutRedirect();
+  }
+
+  expireSession(): void {
+    this.clearToken();
+    void this.manager.removeUser();
+    if (!['/login', '/authenticate'].includes(this.router.url.split('?')[0])) {
+      void this.router.navigateByUrl('/login', { replaceUrl: true });
+    }
   }
 
   private storeToken(user: User): void {

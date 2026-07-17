@@ -44,6 +44,7 @@ export interface DriverJob {
   distanceMiles?: number;
   status: string;
   equipmentCode?: string;
+  equipmentId?: string;
   equipmentName?: string;
   equipmentType?: string;
   equipmentQrCode?: string;
@@ -75,6 +76,7 @@ export interface DriverDelivery {
   deliveredGallons: number;
   completedAt: string;
 }
+export interface DriverEquipment {id:string;customerId:string;customerName:string;siteId:string;siteName:string;siteAddress:string;name:string;type:string;manufacturer?:string;model?:string;serialNumber?:string;capacityGallons?:number;fuelType:string;qrCode:string;status:string;estimatedLevelPercent?:number;latitude?:number;longitude?:number;photoUrl?:string;accessNotes?:string;}
 
 export interface DriverBootstrap {
   profile: DriverProfile;
@@ -117,5 +119,9 @@ export class DriverApiService {
       serverTime: string;
     }>>(`${environment.apiUrl}/driver/app/sync`, { events })
       .pipe(map(response => response.data));
+  }
+
+  lookupEquipment(jobId:string,qrCode:string):Observable<DriverEquipment>{
+    return this.http.get<ApiResponse<DriverEquipment>>(`${environment.apiUrl}/equipment/driver/jobs/${jobId}/lookup?qrCode=${encodeURIComponent(qrCode)}`).pipe(map(response=>response.data));
   }
 }

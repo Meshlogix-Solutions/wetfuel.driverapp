@@ -66,9 +66,9 @@ import { DriverStateService } from '../services/driver-state.service';
 })
 export class DashboardPage {
   readonly state: DriverStateService;
-  readonly completedJobs = computed(() => state.jobs().filter(job => job.status === 'completed').length);
-  readonly plannedGallons = computed(() => state.jobs().reduce((sum, job) => sum + Number(job.targetGallons), 0));
-  readonly nextJob = computed(() => state.jobs().find(job => !['completed', 'cancelled'].includes(job.status)) ?? null);
+  readonly completedJobs = computed(() => this.state.jobs().filter(job => job.status === 'completed').length);
+  readonly plannedGallons = computed(() => this.state.jobs().reduce((sum, job) => sum + Number(job.targetGallons), 0));
+  readonly nextJob = computed(() => this.state.jobs().find(job => !['completed', 'cancelled'].includes(job.status)) ?? null);
   constructor(state: DriverStateService) { this.state = state; }
   ionViewWillEnter(): void {
     void this.state.refresh().catch(() => undefined);

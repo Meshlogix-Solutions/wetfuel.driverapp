@@ -4,6 +4,7 @@ import {
   DriverApiService,
   DriverBootstrap,
   DriverDelivery,
+  DriverEquipment,
   DriverJob,
   DriverProfile,
   DriverVehicle,
@@ -30,6 +31,7 @@ export class DriverStateService {
       ?? this.jobs().find(job => !['completed', 'cancelled'].includes(job.status))
       ?? null);
   readonly recentDeliveries = signal<DriverDelivery[]>([]);
+  readonly verifiedEquipment = signal<DriverEquipment | null>(null);
   readonly activeShift = signal<DriverBootstrap['activeShift']>(undefined);
   readonly shifts = signal<DriverBootstrap['shifts']>([]);
   readonly shiftActive = computed(() => !!this.activeShift());
@@ -87,6 +89,7 @@ export class DriverStateService {
       vehicleId: this.selectedVehicleId() ?? undefined,
       startedAt: new Date().toISOString(),
       breakMinutes: 0,
+      durationHours: 0,
     });
     this.enqueue('shift.clock_in', {
       vehicleId: this.selectedVehicleId(),
@@ -126,7 +129,10 @@ export class DriverStateService {
 
   selectJob(jobId: string): void {
     this.selectedJobId.set(jobId);
+    this.verifiedEquipment.set(null);
   }
+
+  async lookupEquipment(qrCode:string):Promise<DriverEquipment>{const job=this.selectedJob();if(!job)throw new Error('No selected job.');const equipment=await firstValueFrom(this.api.lookupEquipment(job.id,qrCode));this.verifiedEquipment.set(equipment);return equipment;}
 
   submitInspection(
     vehicleId: string,
