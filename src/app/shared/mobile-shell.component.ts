@@ -11,7 +11,7 @@ import { ThemeService } from '../services/theme.service';
   imports: [CommonModule, RouterLink, RouterLinkActive, IonContent, IonIcon],
   template: `
     <ion-content [fullscreen]="true">
-      <div class="app-frame">
+      <div class="app-frame" [style.--wf-screen-bottom-padding]="showNav ? '110px' : '28px'">
         <header class="topbar">
           <div class="topbar-left">
             <a *ngIf="backRoute" class="top-icon" [routerLink]="backRoute" aria-label="Back">

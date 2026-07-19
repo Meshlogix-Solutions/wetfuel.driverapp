@@ -35,8 +35,11 @@ export class DriverAuthService {
     return true;
   }
 
-  login(): Promise<void> {
-    return this.manager.signinRedirect();
+  login(loginHint?: string): Promise<void> {
+    return this.manager.signinRedirect({
+      prompt: 'login',
+      login_hint: loginHint?.trim() || undefined,
+    });
   }
 
   async completeLogin(): Promise<User> {

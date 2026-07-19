@@ -1,59 +1,105 @@
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { IonCard, IonCardContent, IonIcon, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton } from '@ionic/angular/standalone';
-import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { Router } from '@angular/router';
+import { IonButton, IonCard, IonCardContent, IonCheckbox, IonInput, IonItem, IonLabel, IonTextarea } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
+import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-delivery-proof',
   standalone: true,
-  imports: [FormsModule, RouterLink, MobileShellComponent, IonCard, IonCardContent, IonIcon, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton],
+  imports: [FormsModule, MobileShellComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton],
   template: `
-<wf-mobile-shell title="Delivery proof" subtitle="186 gallons captured" backRoute="/fueling">
-  <main class="screen-body stack">
-    <ion-card class="wf-card soft-card"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="checkmark-circle-outline"></ion-icon></div><div><strong>Meter delivery saved</strong><p class="caption" style="margin:4px 0 0">LCR transaction 7782-070326-0918</p></div></ion-card-content></ion-card>
-    <section>
-      <h2 class="section-title">Required photos</h2>
-      <div class="photo-grid">
-        <button class="photo-box filled">📷<br>Meter photo<br><strong>Added</strong></button>
-        <button class="photo-box filled">📷<br>Equipment photo<br><strong>Added</strong></button>
-        <button class="photo-box">＋<br>Add site photo</button>
-      </div>
-    </section>
-    <ion-card class="wf-card">
-      <ion-card-content class="stack">
-        <h2 class="section-title">Meter readings</h2>
-        <div class="grid-2">
-          <ion-item><ion-input label="Starting totalizer" labelPlacement="stacked" value="58,449.3"></ion-input></ion-item>
-          <ion-item><ion-input label="Ending totalizer" labelPlacement="stacked" value="58,635.3"></ion-input></ion-item>
-        </div>
-        <ion-item><ion-input label="Delivered volume" labelPlacement="stacked" value="186.0 gallons" [readonly]="true"></ion-input></ion-item>
-      </ion-card-content>
-    </ion-card>
-    <ion-card class="wf-card">
-      <ion-card-content>
-        <ion-item lines="full">
-          <ion-checkbox slot="start" [checked]="true"></ion-checkbox>
-          <ion-label class="ion-text-wrap"><strong>No leaks or spills observed</strong><p class="caption">Hose disconnected and caps secured.</p></ion-label>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-checkbox slot="start"></ion-checkbox>
-          <ion-label class="ion-text-wrap"><strong>Customer/site contact notified</strong><p class="caption">Delivery completion communicated.</p></ion-label>
-        </ion-item>
-      </ion-card-content>
-    </ion-card>
-    <ion-item><ion-textarea label="Driver notes" labelPlacement="stacked" [(ngModel)]="notes" placeholder="Delivery completed without issue..."></ion-textarea></ion-item>
-    <ion-button class="wf-button" expand="block" routerLink="/delivery-summary">Review delivery summary</ion-button>
-  </main>
-</wf-mobile-shell>
-  `
+    <wf-mobile-shell title="Delivery proof" [subtitle]="state.deliveredGallons() + ' gallons captured'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/fueling'">
+      <main class="screen-body stack">
+        <ion-card class="wf-card soft-card"><ion-card-content><strong>Meter delivery saved</strong><p class="caption" style="margin:4px 0 0">Upload both required photos and enter totalizers when available.</p></ion-card-content></ion-card>
+        <section>
+          <h2 class="section-title">Required photos</h2>
+          <div class="photo-grid">
+            <label class="photo-box" [class.filled]="!!meterPhotoUrl">
+              📷<br>Meter photo<br><strong>{{ meterPhotoUrl ? 'Uploaded' : uploading === 'meter' ? 'Uploading...' : 'Tap to capture' }}</strong>
+              <input hidden type="file" accept="image/*" capture="environment" (change)="uploadPhoto('meter',$event)">
+            </label>
+            <label class="photo-box" [class.filled]="!!equipmentPhotoUrl">
+              📷<br>Equipment photo<br><strong>{{ equipmentPhotoUrl ? 'Uploaded' : uploading === 'equipment' ? 'Uploading...' : 'Tap to capture' }}</strong>
+              <input hidden type="file" accept="image/*" capture="environment" (change)="uploadPhoto('equipment',$event)">
+            </label>
+          </div>
+          @if (uploadError) { <p style="color:var(--ion-color-danger)">{{ uploadError }}</p> }
+        </section>
+        <ion-card class="wf-card"><ion-card-content class="stack">
+          <h2 class="section-title">Meter readings</h2>
+          <div class="grid-2">
+            <ion-item><ion-input label="Starting totalizer" labelPlacement="stacked" type="number" [(ngModel)]="startingTotalizer"></ion-input></ion-item>
+            <ion-item><ion-input label="Ending totalizer" labelPlacement="stacked" type="number" [(ngModel)]="endingTotalizer"></ion-input></ion-item>
+          </div>
+          <ion-item><ion-input label="Delivered volume" labelPlacement="stacked" [value]="state.deliveredGallons() + ' gallons'" [readonly]="true"></ion-input></ion-item>
+          @if (!validMeter) { <p style="color:var(--ion-color-danger)">Enter both totalizers and make sure their difference matches the delivered gallons.</p> }
+        </ion-card-content></ion-card>
+        <ion-card class="wf-card"><ion-card-content>
+          <ion-item lines="full"><ion-checkbox slot="start" [(ngModel)]="safe"></ion-checkbox><ion-label class="ion-text-wrap"><strong>No leaks or spills observed</strong><p class="caption">Hose disconnected and caps secured.</p></ion-label></ion-item>
+          <ion-item lines="none"><ion-checkbox slot="start" [(ngModel)]="notified"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Customer/site contact notified</strong><p class="caption">Delivery completion communicated.</p></ion-label></ion-item>
+        </ion-card-content></ion-card>
+        <ion-item><ion-textarea label="Driver notes" labelPlacement="stacked" [(ngModel)]="notes" placeholder="Delivery completed without issue..."></ion-textarea></ion-item>
+        <ion-button class="wf-button" expand="block" [disabled]="!canReview" (click)="review()">Review delivery summary</ion-button>
+      </main>
+    </wf-mobile-shell>
+  `,
 })
 export class DeliveryProofPage implements OnInit {
-  notes = 'Delivery completed safely. Generator tank and surrounding area inspected.';
-  constructor(private readonly state: DriverStateService) {}
+  notes = 'Delivery completed safely.';
+  startingTotalizer?: number;
+  endingTotalizer?: number;
+  meterPhotoUrl = '';
+  equipmentPhotoUrl = '';
+  safe = false;
+  notified = false;
+  uploading: '' | 'meter' | 'equipment' = '';
+  uploadError = '';
+
+  constructor(readonly state: DriverStateService, private readonly router: Router) {}
   ngOnInit(): void {
+    const draft = this.state.deliveryDraft();
+    this.startingTotalizer = draft.startingTotalizer;
+    this.endingTotalizer = draft.endingTotalizer;
+    this.notes = draft.notes ?? this.notes;
+    this.meterPhotoUrl = draft.meterPhotoUrl ?? '';
+    this.equipmentPhotoUrl = draft.equipmentPhotoUrl ?? '';
+  }
+  get validMeter(): boolean {
+    if (this.startingTotalizer == null && this.endingTotalizer == null) return true;
+    if (this.startingTotalizer == null || this.endingTotalizer == null) return false;
+    return this.endingTotalizer >= this.startingTotalizer
+      && Math.abs((this.endingTotalizer - this.startingTotalizer) - this.state.deliveredGallons()) <= 0.1;
+  }
+  get canReview(): boolean {
+    return !!this.meterPhotoUrl && !!this.equipmentPhotoUrl && this.safe && this.notified && this.validMeter && !this.uploading;
+  }
+  async uploadPhoto(kind: 'meter' | 'equipment', event: Event): Promise<void> {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.uploading = kind;
+    this.uploadError = '';
+    try {
+      const url = await this.state.uploadEvidence(file);
+      if (kind === 'meter') this.meterPhotoUrl = url;
+      else this.equipmentPhotoUrl = url;
+    } catch (error: unknown) {
+      const failure = error as { error?: { message?: string }; message?: string };
+      this.uploadError = failure.error?.message ?? failure.message ?? 'The photo could not be uploaded.';
+    } finally {
+      this.uploading = '';
+    }
+  }
+  review(): void {
     const job = this.state.selectedJob();
-    if (job) this.state.updateJob(job.id, 'proof_pending');
+    if (!job || !this.canReview) return;
+    this.state.setDeliveryProof({
+      startingTotalizer:this.startingTotalizer, endingTotalizer:this.endingTotalizer, notes:this.notes,
+      meterPhotoCaptured:true, equipmentPhotoCaptured:true,
+      meterPhotoUrl:this.meterPhotoUrl, equipmentPhotoUrl:this.equipmentPhotoUrl,
+    });
+    if (!this.state.updateJob(job.id, 'proof_pending')) return;
+    void this.router.navigate(['/jobs', job.id, 'delivery-summary']);
   }
 }

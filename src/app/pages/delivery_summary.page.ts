@@ -9,7 +9,7 @@ import { DriverStateService } from '../services/driver-state.service';
   standalone: true,
   imports: [MobileShellComponent, IonCard, IonCardContent, IonIcon, IonButton],
   template: `
-<wf-mobile-shell title="Complete delivery" subtitle="Review and submit" backRoute="/delivery-proof">
+<wf-mobile-shell title="Complete delivery" subtitle="Review and submit" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/delivery-proof'">
   <main class="screen-body stack">
     <ion-card class="wf-card text-center">
       <ion-card-content>
@@ -46,9 +46,17 @@ export class DeliverySummaryPage {
   complete(): void {
     const job = this.state.selectedJob();
     if (job) {
+      const draft = this.state.deliveryDraft();
       this.state.completeDelivery(job.id, this.state.deliveredGallons() || job.targetGallons, {
-        notes: 'Delivery completed safely.',
-        proof: { meterPhotoCaptured: true, equipmentPhotoCaptured: true },
+        startingTotalizer: draft.startingTotalizer,
+        endingTotalizer: draft.endingTotalizer,
+        notes: draft.notes,
+        proof: {
+          meterPhotoCaptured: draft.meterPhotoCaptured,
+          equipmentPhotoCaptured: draft.equipmentPhotoCaptured,
+          meterPhotoUrl: draft.meterPhotoUrl,
+          equipmentPhotoUrl: draft.equipmentPhotoUrl,
+        },
       });
     }
     void this.router.navigateByUrl('/jobs');

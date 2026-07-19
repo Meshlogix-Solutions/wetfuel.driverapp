@@ -3,7 +3,7 @@ html, body { margin: 0; min-height: 100%; background: var(--wf-background); colo
 body { font-family: var(--ion-font-family); }
 a { text-decoration: none; }
 
-.screen-body { padding: 18px 18px 110px; max-width: 720px; margin: 0 auto; }
+.screen-body { padding: 18px 18px var(--wf-screen-bottom-padding, 28px); max-width: 720px; margin: 0 auto; }
 .stack { display: grid; grid-template-columns: minmax(0,1fr); gap: 14px; }
 .row { display: flex; align-items: center; gap: 12px; }
 .row > div { min-width: 0; }

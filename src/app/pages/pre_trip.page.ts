@@ -1,7 +1,6 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import {
   IonCard, IonCardContent, IonItem, IonCheckbox, IonLabel, IonTextarea, IonButton
 } from '@ionic/angular/standalone';
@@ -14,7 +13,7 @@ import { Router } from '@angular/router';
   selector: 'app-pre-trip',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterLink, MobileShellComponent,
+    CommonModule, FormsModule, MobileShellComponent,
     IonCard, IonCardContent, IonItem, IonCheckbox, IonLabel, IonTextarea, IonButton
   ],
   template: `

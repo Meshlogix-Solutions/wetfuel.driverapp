@@ -25,6 +25,16 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "sql-wasm.wasm",
+                "input": "node_modules/sql.js/dist",
+                "output": "assets"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/jeep-sqlite/dist/jeep-sqlite",
+                "output": "assets/jeep-sqlite"
               }
             ],
             "styles": [
@@ -83,5 +93,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "56d8e6db-a59a-48c6-a67b-bfd388b27add"
   }
 }

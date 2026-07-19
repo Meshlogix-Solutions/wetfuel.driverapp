@@ -124,4 +124,11 @@ export class DriverApiService {
   lookupEquipment(jobId:string,qrCode:string):Observable<DriverEquipment>{
     return this.http.get<ApiResponse<DriverEquipment>>(`${environment.apiUrl}/equipment/driver/jobs/${jobId}/lookup?qrCode=${encodeURIComponent(qrCode)}`).pipe(map(response=>response.data));
   }
+
+  uploadFile(file: File): Observable<string> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.post<ApiResponse<{ filePath: string }>>(`${environment.apiUrl}/user/UploadFile`, form)
+      .pipe(map(response => response.data.filePath));
+  }
 }

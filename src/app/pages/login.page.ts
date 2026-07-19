@@ -19,8 +19,8 @@ import { DriverAuthService } from '../services/driver-auth.service';
             <h1>Welcome back</h1>
             <p class="page-lead">Sign in to see today's route, complete inspections and record deliveries.</p>
           </div>
-          <ion-item><ion-input label="Email or phone" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
-          <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
+          <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
+          <p class="caption" style="margin:0">You will enter your password on the secure WetFuel sign-in page.</p>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
           <ion-button class="wf-button" expand="block" (click)="login()">Sign in securely</ion-button>
          </ion-card-content>
@@ -31,8 +31,7 @@ import { DriverAuthService } from '../services/driver-auth.service';
   `
 })
 export class LoginPage {
-  identity = 'dave@wetfuel.com';
-  password = '';
+  identity = 'driver@wetfuel.com';
   constructor(private readonly auth: DriverAuthService) {}
-  login(): void { void this.auth.login(); }
+  login(): void { void this.auth.login(this.identity); }
 }
