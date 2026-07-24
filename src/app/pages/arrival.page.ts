@@ -54,9 +54,10 @@ export class ArrivalPage {
     );
   }
   get canArrive(): boolean { return this.positioned && this.contactNotified && this.hazardsChecked; }
-  arrive(): void {
+  async arrive(): Promise<void> {
     const job = this.state.selectedJob();
-    if (!job || !this.canArrive || !this.state.updateJob(job.id, 'arrived', { latitude:this.latitude, longitude:this.longitude, accuracyMeters:this.accuracy })) return;
+    if (!job || !this.canArrive) return;
+    if (!(await this.state.updateJob(job.id, 'arrived', { latitude:this.latitude, longitude:this.longitude, accuracyMeters:this.accuracy }))) return;
     void this.router.navigate(['/jobs', job.id, 'qr-scanner']);
   }
 }

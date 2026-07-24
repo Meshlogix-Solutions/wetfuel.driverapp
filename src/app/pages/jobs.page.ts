@@ -24,6 +24,15 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
       }
     </ion-segment>
 
+    @if (state.syncError()) {
+      <ion-card class="wf-card" style="border:1px solid var(--ion-color-danger)">
+        <ion-card-content>
+          <strong style="color:var(--ion-color-danger)">Sync issue</strong>
+          <p class="caption" style="margin:4px 0 0">{{ state.syncError() }}</p>
+        </ion-card-content>
+      </ion-card>
+    }
+
     <ion-card class="wf-card hero-card">
       <ion-card-content>
         <div class="row-between">

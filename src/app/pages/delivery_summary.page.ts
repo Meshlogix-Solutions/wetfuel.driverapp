@@ -35,29 +35,51 @@ import { DriverStateService } from '../services/driver-state.service';
         </div>
       </ion-card-content>
     </ion-card>
-    <ion-card class="wf-card warning-card"><ion-card-content><strong>Offline-ready submission</strong><p class="caption" style="margin:6px 0 0">If connectivity is lost, this completed delivery will be securely queued and synced later.</p></ion-card-content></ion-card>
+    <ion-card class="wf-card warning-card"><ion-card-content><strong>Internet connection required</strong><p class="caption" style="margin:6px 0 0">This delivery is submitted directly to the server — an internet connection is needed to complete it.</p></ion-card-content></ion-card>
+    @if (submitError) { <p style="color:var(--ion-color-danger)">{{ submitError }}</p> }
     <ion-button class="wf-button" color="tertiary" expand="block" (click)="complete()">Complete job and sync</ion-button>
   </main>
 </wf-mobile-shell>
   `
 })
 export class DeliverySummaryPage {
+  submitError = '';
   constructor(readonly state: DriverStateService, private readonly router: Router) {}
-  complete(): void {
+  async complete(): Promise<void> {
     const job = this.state.selectedJob();
-    if (job) {
-      const draft = this.state.deliveryDraft();
-      this.state.completeDelivery(job.id, this.state.deliveredGallons() || job.targetGallons, {
-        startingTotalizer: draft.startingTotalizer,
-        endingTotalizer: draft.endingTotalizer,
-        notes: draft.notes,
-        proof: {
-          meterPhotoCaptured: draft.meterPhotoCaptured,
-          equipmentPhotoCaptured: draft.equipmentPhotoCaptured,
-          meterPhotoUrl: draft.meterPhotoUrl,
-          equipmentPhotoUrl: draft.equipmentPhotoUrl,
-        },
-      });
+    if (!job) return;
+    // The server rejects a delivery.completed event whose gallons don't match the totalizer
+    // difference — re-check that here (using the exact value about to be sent, no fallback
+    // substitution) instead of trusting a validation that ran on an earlier screen the driver
+    // may have skipped past on resume (see job_details.page.ts's proof_pending shortcut).
+    const deliveredGallons = this.state.deliveredGallons();
+    if (!deliveredGallons) {
+      this.submitError = 'Delivered volume was not captured. Go back to fueling and re-enter it.';
+      return;
+    }
+    const draft = this.state.deliveryDraft();
+    if (draft.startingTotalizer != null && draft.endingTotalizer != null) {
+      const metered = draft.endingTotalizer - draft.startingTotalizer;
+      if (draft.endingTotalizer < draft.startingTotalizer || Math.abs(metered - deliveredGallons) > 0.1) {
+        this.submitError = `Delivered volume (${deliveredGallons} gal) doesn't match the meter totalizer difference (${metered} gal). Go back and correct the totalizers or delivered volume.`;
+        return;
+      }
+    }
+    this.submitError = '';
+    const ok = await this.state.completeDelivery(job.id, deliveredGallons, {
+      startingTotalizer: draft.startingTotalizer,
+      endingTotalizer: draft.endingTotalizer,
+      notes: draft.notes,
+      proof: {
+        meterPhotoCaptured: draft.meterPhotoCaptured,
+        equipmentPhotoCaptured: draft.equipmentPhotoCaptured,
+        meterPhotoUrl: draft.meterPhotoUrl,
+        equipmentPhotoUrl: draft.equipmentPhotoUrl,
+      },
+    });
+    if (!ok) {
+      this.submitError = this.state.syncError() || 'The delivery could not be completed.';
+      return;
     }
     void this.router.navigateByUrl('/jobs');
   }

@@ -37,13 +37,13 @@ export class ClockInPage {
   constructor(private readonly state: DriverStateService, private readonly router: Router) {}
   get currentTime():string{return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
   clockIn(): void {
-    if(!navigator.geolocation){this.finishClockIn();return;}
+    if(!navigator.geolocation){void this.finishClockIn();return;}
     this.locationStatus='Capturing location...';
     navigator.geolocation.getCurrentPosition(
-      position=>{this.latitude=position.coords.latitude;this.longitude=position.coords.longitude;this.locationCaptured=true;this.locationStatus=`Captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;this.finishClockIn();},
-      ()=>{this.locationStatus='Location permission was not granted.';this.finishClockIn();},
+      position=>{this.latitude=position.coords.latitude;this.longitude=position.coords.longitude;this.locationCaptured=true;this.locationStatus=`Captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;void this.finishClockIn();},
+      ()=>{this.locationStatus='Location permission was not granted.';void this.finishClockIn();},
       {enableHighAccuracy:true,timeout:10000,maximumAge:30000},
     );
   }
-  private finishClockIn():void{this.state.clockIn(undefined,this.latitude,this.longitude);void this.router.navigateByUrl('/vehicle');}
+  private async finishClockIn():Promise<void>{if(await this.state.clockIn(undefined,this.latitude,this.longitude))void this.router.navigateByUrl('/vehicle');}
 }

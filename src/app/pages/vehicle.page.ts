@@ -50,9 +50,10 @@ export class VehiclePage {
   inventoryPercent(inventory: number, capacity: number): number {
     return capacity > 0 ? Math.round((inventory / capacity) * 100) : 0;
   }
-  confirm(): void {
+  async confirm(): Promise<void> {
     const vehicle = this.vehicles.find(item => item.id === this.selected);
-    if (vehicle) this.state.setVehicle(vehicle.name);
+    if (!vehicle) return;
+    if (!(await this.state.setVehicle(vehicle.name))) return;
     void this.router.navigateByUrl('/pre-trip');
   }
 }

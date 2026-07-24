@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonCheckbox, IonInput, IonItem, IonLabel, IonTextarea } from '@ionic/angular/standalone';
@@ -57,7 +57,11 @@ export class DeliveryProofPage implements OnInit {
   uploading: '' | 'meter' | 'equipment' = '';
   uploadError = '';
 
-  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  constructor(
+    readonly state: DriverStateService,
+    private readonly router: Router,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
   ngOnInit(): void {
     const draft = this.state.deliveryDraft();
     this.startingTotalizer = draft.startingTotalizer;
@@ -89,9 +93,13 @@ export class DeliveryProofPage implements OnInit {
       this.uploadError = failure.error?.message ?? failure.message ?? 'The photo could not be uploaded.';
     } finally {
       this.uploading = '';
+      // The upload can settle while the tab is backgrounded (e.g. returning from the native
+      // camera), outside a zone-tracked event — force the view to pick up the state change
+      // immediately instead of waiting for the next unrelated click to trigger it.
+      this.cdr.detectChanges();
     }
   }
-  review(): void {
+  async review(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job || !this.canReview) return;
     this.state.setDeliveryProof({
@@ -99,7 +107,7 @@ export class DeliveryProofPage implements OnInit {
       meterPhotoCaptured:true, equipmentPhotoCaptured:true,
       meterPhotoUrl:this.meterPhotoUrl, equipmentPhotoUrl:this.equipmentPhotoUrl,
     });
-    if (!this.state.updateJob(job.id, 'proof_pending')) return;
+    if (!(await this.state.updateJob(job.id, 'proof_pending'))) return;
     void this.router.navigate(['/jobs', job.id, 'delivery-summary']);
   }
 }

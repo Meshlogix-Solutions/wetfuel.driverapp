@@ -1,4 +1,4 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
   DriverApiService,
@@ -11,15 +11,15 @@ import {
   OfflineDriverEvent,
 } from './driver-api.service';
 import { ConnectivityService } from './connectivity.service';
-import { DriverOfflineDatabaseService } from './driver-offline-database.service';
 
+// Online-only for now: every action calls the server immediately and awaits the result.
+// Local state (job status, shift, etc.) only updates after the server confirms, so there's
+// no optimistic state that can drift from what's actually saved, and no offline queue that
+// can silently reject an action long after the driver has moved on.
 @Injectable({ providedIn: 'root' })
 export class DriverStateService {
   private readonly api = inject(DriverApiService);
   private readonly connectivity = inject(ConnectivityService);
-  private readonly offlineDatabase = inject(DriverOfflineDatabaseService);
-  private readonly queue = signal<OfflineDriverEvent[]>([]);
-  private syncing = false;
 
   readonly profile = signal<DriverProfile | null>(null);
   readonly vehicles = signal<DriverVehicle[]>([]);
@@ -45,32 +45,12 @@ export class DriverStateService {
   readonly meterConnected = signal(false);
   readonly deliveredGallons = signal(0);
   readonly deliveryDraft = signal<{startingTotalizer?:number;endingTotalizer?:number;notes?:string;meterPhotoCaptured:boolean;equipmentPhotoCaptured:boolean;meterPhotoUrl?:string;equipmentPhotoUrl?:string}>({meterPhotoCaptured:false,equipmentPhotoCaptured:false});
-  readonly syncPending = computed(() => this.queue().length);
-  readonly syncInProgress = signal(false);
+  readonly busy = signal(false);
   readonly syncError = signal('');
   readonly lastSyncAt = signal<string | null>(null);
   readonly initialized = signal(false);
 
-  constructor() {
-    effect(() => {
-      if (localStorage.getItem('driver_access_token') && this.connectivity.online() && this.queue().length > 0) {
-        void this.syncNow();
-      }
-    });
-  }
-
   async initialize(): Promise<void> {
-    try {
-      await this.offlineDatabase.initialize();
-      this.queue.set(await this.offlineDatabase.listPendingEvents());
-      this.selectedJobId.set(await this.offlineDatabase.getState<string>('selected_job_id'));
-      const cached = await this.offlineDatabase.getState<DriverBootstrap>('bootstrap');
-      if (cached) this.applyBootstrap(cached);
-      this.lastSyncAt.set(await this.offlineDatabase.getState<string>('last_sync_at'));
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Offline database initialization failed.';
-      this.syncError.set(`Offline storage unavailable: ${message}`);
-    }
     if (!localStorage.getItem('driver_access_token')) {
       this.initialized.set(true);
       return;
@@ -85,20 +65,15 @@ export class DriverStateService {
   async refresh(): Promise<void> {
     try {
       const bootstrap = await firstValueFrom(this.api.bootstrap());
-      if (this.offlineDatabase.available) {
-        await this.offlineDatabase.setState('bootstrap', bootstrap);
-      }
       this.applyBootstrap(bootstrap);
-      if (this.queue().length > 0 && this.connectivity.online()) {
-        queueMicrotask(() => void this.syncNow());
-      }
     } finally {
       this.initialized.set(true);
     }
   }
 
-  clockIn(note?: string, latitude?: number, longitude?: number): void {
+  async clockIn(note?: string, latitude?: number, longitude?: number): Promise<boolean> {
     const shiftId = crypto.randomUUID();
+    if (!(await this.send('shift.clock_in', { vehicleId: this.selectedVehicleId(), note, latitude, longitude }, shiftId))) return false;
     this.activeShift.set({
       id: shiftId,
       status: 'clocked_in',
@@ -107,60 +82,56 @@ export class DriverStateService {
       breakMinutes: 0,
       durationHours: 0,
     });
-    this.enqueue('shift.clock_in', {
-      vehicleId: this.selectedVehicleId(),
-      note,
-      latitude,
-      longitude,
-    }, shiftId);
+    return true;
   }
 
-  clockOut(): void {
-    this.enqueue('shift.clock_out', {}, this.activeShift()?.id);
+  async clockOut(): Promise<boolean> {
+    const shiftId = this.activeShift()?.id;
+    if (!(await this.send('shift.clock_out', {}, shiftId))) return false;
     this.activeShift.set(undefined);
     this.selectedVehicleId.set(null);
+    return true;
   }
 
-  togglePause(): void {
+  async togglePause(): Promise<boolean> {
     const shift = this.activeShift();
-    if (!shift) return;
+    if (!shift) return false;
     const nextStatus = shift.status === 'on_break' ? 'clocked_in' : 'on_break';
+    if (!(await this.send(nextStatus === 'on_break' ? 'shift.pause' : 'shift.resume', {}, shift.id))) return false;
     this.activeShift.set({ ...shift, status: nextStatus });
-    this.enqueue(nextStatus === 'on_break' ? 'shift.pause' : 'shift.resume', {}, shift.id);
+    return true;
   }
 
   connectMeter(): void {
     this.meterConnected.set(true);
   }
 
-  setVehicle(vehicleName: string): void {
+  async setVehicle(vehicleName: string): Promise<boolean> {
     const vehicle = this.vehicles().find(item =>
       item.name === vehicleName || this.vehicleDisplay(item) === vehicleName);
-    if (!vehicle) return;
-    this.selectedVehicleId.set(vehicle.id);
+    if (!vehicle) return false;
     const shift = this.activeShift();
+    if (!(await this.send('shift.vehicle_selected', { vehicleId: vehicle.id }, shift?.id))) return false;
+    this.selectedVehicleId.set(vehicle.id);
     if (shift) this.activeShift.set({ ...shift, vehicleId: vehicle.id });
-    this.enqueue('shift.vehicle_selected', { vehicleId: vehicle.id }, shift?.id);
+    return true;
   }
 
   selectJob(jobId: string): void {
     if (this.selectedJobId() === jobId) return;
     this.selectedJobId.set(jobId);
-    if (this.offlineDatabase.available) {
-      void this.offlineDatabase.setState('selected_job_id', jobId);
-    }
     this.verifiedEquipment.set(null);
   }
 
   async lookupEquipment(qrCode:string):Promise<DriverEquipment>{const job=this.selectedJob();if(!job)throw new Error('No selected job.');const equipment=await firstValueFrom(this.api.lookupEquipment(job.id,qrCode));this.verifiedEquipment.set(equipment);return equipment;}
 
-  submitInspection(
+  async submitInspection(
     vehicleId: string,
     checklist: Record<string, boolean>,
     notes?: string,
     photoUrls: string[] = [],
-  ): void {
-    this.enqueue('inspection.submitted', {
+  ): Promise<boolean> {
+    return this.send('inspection.submitted', {
       vehicleId,
       passed: Object.values(checklist).every(Boolean),
       checklist,
@@ -169,7 +140,7 @@ export class DriverStateService {
     }, crypto.randomUUID());
   }
 
-  updateJob(jobId: string, action: 'started' | 'arrived' | 'equipment_verified' | 'fueling' | 'proof_pending', payload: Record<string, unknown> = {}): boolean {
+  async updateJob(jobId: string, action: 'started' | 'arrived' | 'equipment_verified' | 'fueling' | 'proof_pending', payload: Record<string, unknown> = {}): Promise<boolean> {
     const job = this.jobs().find(item => item.id === jobId);
     const expected: Record<string, string> = {
       assigned: 'started',
@@ -182,18 +153,23 @@ export class DriverStateService {
       this.syncError.set('Clock in and select the delivery vehicle before starting a job.');
       return false;
     }
-    if (!job || expected[job.status] !== action) {
-      this.syncError.set(`Job cannot move from '${job?.status ?? 'unknown'}' to '${action}'.`);
+    if (!job) {
+      this.syncError.set(`Job cannot move from 'unknown' to '${action}'.`);
       return false;
     }
-    if (this.syncError() && this.connectivity.online()) return false;
-    this.jobs.update(jobs => jobs.map(job =>
-      job.id === jobId ? { ...job, status: action } : job));
-    this.enqueue(`job.${action}`, payload, jobId);
+    // Re-entering delivery-proof to correct photos/totalizers after already reaching
+    // proof_pending re-submits the same transition — that's a no-op, not an error.
+    if (job.status === action) return true;
+    if (expected[job.status] !== action) {
+      this.syncError.set(`Job cannot move from '${job.status}' to '${action}'.`);
+      return false;
+    }
+    if (!(await this.send(`job.${action}`, payload, jobId))) return false;
+    this.jobs.update(jobs => jobs.map(j => j.id === jobId ? { ...j, status: action } : j));
     return true;
   }
 
-  completeDelivery(
+  async completeDelivery(
     jobId: string,
     deliveredGallons: number,
     details: {
@@ -203,20 +179,20 @@ export class DriverStateService {
       notes?: string;
       proof?: Record<string, unknown>;
     } = {},
-  ): void {
+  ): Promise<boolean> {
     const job = this.jobs().find(item => item.id === jobId);
     if (!job || job.status !== 'proof_pending') {
       this.syncError.set(`Job cannot move from '${job?.status ?? 'unknown'}' to 'completed'.`);
-      return;
+      return false;
     }
-    this.deliveredGallons.set(deliveredGallons);
-    this.jobs.update(jobs => jobs.map(job =>
-      job.id === jobId ? { ...job, status: 'completed' } : job));
-    this.enqueue('delivery.completed', {
+    if (!(await this.send('delivery.completed', {
       vehicleId: this.selectedVehicleId(),
       deliveredGallons,
       ...details,
-    }, jobId);
+    }, jobId))) return false;
+    this.deliveredGallons.set(deliveredGallons);
+    this.jobs.update(jobs => jobs.map(j => j.id === jobId ? { ...j, status: 'completed' } : j));
+    return true;
   }
 
   setDeliveryVolume(gallons:number):void{this.deliveredGallons.set(gallons);}
@@ -226,7 +202,7 @@ export class DriverStateService {
     return await firstValueFrom(this.api.uploadFile(file));
   }
 
-  reportIncident(payload: {
+  async reportIncident(payload: {
     jobId?: string;
     incidentType: string;
     severity: string;
@@ -234,62 +210,22 @@ export class DriverStateService {
     latitude?: number;
     longitude?: number;
     evidenceUrls?: string[];
-  }): void {
-    this.enqueue('incident.reported', payload, crypto.randomUUID());
-  }
-
-  clearSync(): void {
-    void this.syncNow();
-  }
-
-  async syncNow(): Promise<void> {
-    if (this.syncing || !this.connectivity.online() || this.queue().length === 0) return;
-    this.syncing = true;
-    this.syncInProgress.set(true);
-    const batch = this.queue().slice(0, 200);
-    let succeeded = false;
-    try {
-      const result = await firstValueFrom(this.api.sync(batch));
-      const processed = new Set([
-        ...result.acceptedEventIds,
-        ...result.alreadyProcessedEventIds,
-      ]);
-      this.queue.update(events => events.filter(event => !processed.has(event.clientEventId)));
-      await this.offlineDatabase.deleteEvents([...processed]);
-      await this.refresh();
-      this.syncError.set('');
-      this.lastSyncAt.set(result.serverTime);
-      await this.offlineDatabase.setState('last_sync_at', result.serverTime);
-      succeeded = true;
-    } catch (error: unknown) {
-      // Keep every event queued. The next online transition/manual sync retries.
-      const failure = error as { error?: { message?: string }; message?: string };
-      const message = failure.error?.message ?? failure.message ?? 'Driver activity could not be synchronized.';
-      await this.offlineDatabase.markFailed(batch.map(event => event.clientEventId), message);
-      if (await this.reconcileInvalidJobTransition(message)) {
-        this.syncError.set('An out-of-sequence job action was removed. Open the job and continue from its current server status.');
-        try { await this.refresh(); } catch { /* Keep cached state available if refresh fails. */ }
-      } else {
-        this.syncError.set(message);
-      }
-    } finally {
-      this.syncing = false;
-      this.syncInProgress.set(false);
-    }
-    if (succeeded && this.queue().length > 0) {
-      queueMicrotask(() => void this.syncNow());
-    }
+  }): Promise<boolean> {
+    return this.send('incident.reported', payload, crypto.randomUUID());
   }
 
   vehicleDisplay(vehicle: DriverVehicle): string {
     return [vehicle.name, vehicle.make, vehicle.model].filter(Boolean).join(' · ');
   }
 
-  private enqueue(
-    eventType: string,
-    payload: Record<string, unknown>,
-    aggregateId?: string,
-  ): void {
+  /** Sends a single event to the server immediately and waits for confirmation.
+   *  Returns false (and sets syncError) instead of throwing, so callers can just
+   *  check the result rather than wrapping every call in try/catch. */
+  private async send(eventType: string, payload: Record<string, unknown>, aggregateId?: string): Promise<boolean> {
+    if (!this.connectivity.online()) {
+      this.syncError.set('You are offline. Connect to the internet and try again.');
+      return false;
+    }
     const event: OfflineDriverEvent = {
       clientEventId: crypto.randomUUID(),
       eventType,
@@ -297,12 +233,19 @@ export class DriverStateService {
       occurredAt: new Date().toISOString(),
       payload,
     };
-    void this.offlineDatabase.addEvent(event).then(() => {
-      this.queue.update(events => [...events, event]);
-      if (this.connectivity.online()) void this.syncNow();
-    }).catch(error => {
-      this.syncError.set(error instanceof Error ? error.message : 'Offline activity could not be saved.');
-    });
+    this.busy.set(true);
+    try {
+      const result = await firstValueFrom(this.api.sync([event]));
+      this.lastSyncAt.set(result.serverTime);
+      this.syncError.set('');
+      return true;
+    } catch (error: unknown) {
+      const failure = error as { error?: { message?: string }; message?: string };
+      this.syncError.set(failure.error?.message ?? failure.message ?? 'The request could not be completed.');
+      return false;
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   private applyBootstrap(bootstrap: DriverBootstrap): void {
@@ -317,36 +260,7 @@ export class DriverStateService {
         ?? bootstrap.profile.assignedVehicleId
         ?? null);
     if (!this.jobs().some(job => job.id === this.selectedJobId() && !['completed','cancelled'].includes(job.status))) {
-      const selected = this.jobs().find(job => !['completed','cancelled'].includes(job.status))?.id ?? null;
-      this.selectedJobId.set(selected);
-      if (this.offlineDatabase.available) {
-        void this.offlineDatabase.setState('selected_job_id', selected);
-      }
+      this.selectedJobId.set(this.jobs().find(job => !['completed','cancelled'].includes(job.status))?.id ?? null);
     }
-  }
-
-  private async reconcileInvalidJobTransition(message: string): Promise<boolean> {
-    const match = message.match(/Job cannot move from '([^']+)' to '([^']+)'/i);
-    if (!match) return false;
-    const nextStatus = match[2].toLowerCase();
-    const eventType = nextStatus === 'completed' ? 'delivery.completed' : `job.${nextStatus}`;
-    const invalid = this.queue().find(event => event.eventType.toLowerCase() === eventType);
-    if (!invalid?.aggregateId) return false;
-
-    const workflowEvents = new Set([
-      'job.started', 'job.arrived', 'job.equipment_verified',
-      'job.fueling', 'job.proof_pending', 'delivery.completed',
-    ]);
-    const invalidIndex = this.queue().findIndex(event => event.clientEventId === invalid.clientEventId);
-    const removedIds = this.queue().filter((event, index) =>
-      event.aggregateId === invalid.aggregateId
-      && workflowEvents.has(event.eventType.toLowerCase())
-      && index >= invalidIndex).map(event => event.clientEventId);
-    this.queue.update(events => events.filter((event, index) =>
-      event.aggregateId !== invalid.aggregateId
-      || !workflowEvents.has(event.eventType.toLowerCase())
-      || index < invalidIndex));
-    await this.offlineDatabase.deleteEvents(removedIds);
-    return true;
   }
 }

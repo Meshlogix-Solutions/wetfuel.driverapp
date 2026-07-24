@@ -62,13 +62,14 @@ export class IncidentPage {
   severity = 'Minor — contained, no injury';
   description = '';
   constructor(private readonly state: DriverStateService, private readonly router: Router) {}
-  submit(): void {
-    this.state.reportIncident({
+  async submit(): Promise<void> {
+    const ok = await this.state.reportIncident({
       jobId: this.state.selectedJob()?.id,
       incidentType: this.incidentType,
       severity: this.severity,
       description: this.description,
     });
+    if (!ok) return;
     void this.router.navigateByUrl('/dashboard');
   }
 }

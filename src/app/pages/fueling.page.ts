@@ -42,12 +42,13 @@ export class FuelingPage {
   get targetGallons(): number { return Number(this.state.selectedJob()?.targetGallons ?? 1); }
   get percent(): number { return Math.min(100, Math.round((Number(this.gallons) / this.targetGallons) * 100)); }
   get canStop(): boolean { return Number(this.gallons) > 0 && this.state.selectedJob()?.status === 'fueling'; }
-  toggleFueling(): void {
-    this.fueling = !this.fueling;
-    if (this.fueling && this.state.selectedJob()?.status === 'equipment_verified') {
+  async toggleFueling(): Promise<void> {
+    const goingActive = !this.fueling;
+    if (goingActive && this.state.selectedJob()?.status === 'equipment_verified') {
       const job = this.state.selectedJob();
-      if (job) this.state.updateJob(job.id, 'fueling');
+      if (job && !(await this.state.updateJob(job.id, 'fueling'))) return;
     }
+    this.fueling = goingActive;
   }
   stopAndRecord():void{const job=this.state.selectedJob();if(!job)return;this.fueling=false;this.state.setDeliveryVolume(Number(this.gallons));void this.router.navigate(['/jobs',job.id,'delivery-proof']);}
 }

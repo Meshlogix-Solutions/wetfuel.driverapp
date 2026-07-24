@@ -36,7 +36,6 @@ import { DriverAuthService } from '../services/driver-auth.service';
 
     <ion-list inset="true">
       <ion-item button routerLink="/vehicle"><ion-icon name="truck-outline" slot="start"></ion-icon><ion-label><h3>Assigned vehicle</h3><p>{{ state.selectedVehicle() }}</p></ion-label></ion-item>
-      <ion-item button routerLink="/sync"><ion-icon name="cloud-outline" slot="start"></ion-icon><ion-label><h3>Offline storage and sync</h3><p>{{ state.syncPending() }} records waiting</p></ion-label></ion-item>
       <ion-item button><ion-icon name="notifications-outline" slot="start"></ion-icon><ion-label>Notification preferences</ion-label></ion-item>
       <ion-item button><ion-icon name="help-circle-outline" slot="start"></ion-icon><ion-label>Help and support</ion-label></ion-item>
     </ion-list>

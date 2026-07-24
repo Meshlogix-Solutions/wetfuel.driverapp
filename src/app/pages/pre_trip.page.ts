@@ -62,11 +62,11 @@ export class PreTripPage {
   get completedCount(): number { return this.checks.filter(Boolean).length; }
   get progress(): number { return Math.round((this.completedCount / this.items.length) * 100); }
   constructor(private readonly state: DriverStateService, private readonly router: Router) {}
-  submit(): void {
+  async submit(): Promise<void> {
     const vehicleId = this.state.selectedVehicleId();
     if (!vehicleId || this.completedCount !== this.items.length) return;
     const checklist = Object.fromEntries(this.items.map((item, index) => [item[0], this.checks[index]]));
-    this.state.submitInspection(vehicleId, checklist);
+    if (!(await this.state.submitInspection(vehicleId, checklist))) return;
     void this.router.navigateByUrl('/jobs');
   }
 }

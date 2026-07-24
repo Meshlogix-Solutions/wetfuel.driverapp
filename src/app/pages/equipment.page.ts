@@ -19,6 +19,6 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 export class EquipmentPage {
   confirmed=false;
   constructor(readonly state:DriverStateService,private readonly router:Router){}
-  confirm():void{const job=this.state.selectedJob();if(!job||!this.state.updateJob(job.id,'equipment_verified'))return;void this.router.navigate(['/jobs',job.id,'meter']);}
+  async confirm():Promise<void>{const job=this.state.selectedJob();if(!job)return;if(!(await this.state.updateJob(job.id,'equipment_verified')))return;void this.router.navigate(['/jobs',job.id,'meter']);}
   mismatch():void{const job=this.state.selectedJob();this.state.verifiedEquipment.set(null);if(job)void this.router.navigate(['/jobs',job.id,'qr-scanner']);}
 }

@@ -70,11 +70,11 @@ export class JobDetailsPage {
     const status = this.state.selectedJob()?.status;
     return ({ assigned:'Start job and navigate', started:'Continue navigation', arrived:'Scan assigned equipment', equipment_verified:'Connect delivery meter', fueling:'Continue fueling', proof_pending:'Review delivery summary', completed:'View delivery history' } as Record<string,string>)[status || 'assigned'] || 'Continue job';
   }
-  continueJob(): void {
+  async continueJob(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
     const currentStatus = job.status;
-    if (currentStatus === 'assigned' && !this.state.updateJob(job.id, 'started')) return;
+    if (currentStatus === 'assigned' && !(await this.state.updateJob(job.id, 'started'))) return;
     const route = ({ assigned:'route-map', started:'route-map', arrived:'qr-scanner', equipment_verified:'meter', fueling:'fueling', proof_pending:'delivery-summary' } as Record<string,string>)[currentStatus];
     if (currentStatus === 'completed') { void this.router.navigateByUrl('/history'); return; }
     if (!route) { void this.router.navigateByUrl('/jobs'); return; }

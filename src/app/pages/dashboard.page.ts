@@ -31,7 +31,6 @@ import { DriverStateService } from '../services/driver-state.service';
     <section class="dashboard-metrics">
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Today's jobs</span><strong>{{ todayJobs().length }}</strong><span class="pill success">{{ completedJobs() }} complete</span></ion-card-content></ion-card>
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Planned gallons</span><strong>{{ plannedGallons() }}</strong><span class="caption">gal</span></ion-card-content></ion-card>
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Pending sync</span><strong>{{ state.syncPending() }}</strong><a routerLink="/sync" class="caption">Review</a></ion-card-content></ion-card>
     </section>
 
     <section>
@@ -57,7 +56,6 @@ import { DriverStateService } from '../services/driver-state.service';
       <h2 class="section-title">Quick actions</h2>
       <div class="grid-2">
         <ion-card class="wf-card compact" routerLink="/incident"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="warning-outline"></ion-icon></div><strong>Report incident</strong></ion-card-content></ion-card>
-        <ion-card class="wf-card compact" routerLink="/sync"><ion-card-content class="row"><div class="icon-tile"><ion-icon name="cloud-outline"></ion-icon></div><strong>Sync center</strong></ion-card-content></ion-card>
       </div>
     </section>
   </main>
@@ -65,29 +63,7 @@ import { DriverStateService } from '../services/driver-state.service';
   `,
   styles: [`
     .dashboard-metrics { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
-    .dashboard-metrics ion-card:last-child { grid-column:1 / -1; }
     .dashboard-metrics .metric { min-width:0; }
-    .dashboard-metrics ion-card:last-child .metric {
-      min-height:88px;
-      grid-template-columns:minmax(0,1fr) auto;
-      grid-template-areas:'label value' 'action value';
-      align-items:center;
-      column-gap:16px;
-    }
-    .dashboard-metrics ion-card:last-child .label { grid-area:label; }
-    .dashboard-metrics ion-card:last-child strong { grid-area:value;font-size:30px; }
-    .dashboard-metrics ion-card:last-child .caption { grid-area:action; }
-    @media (min-width:520px) {
-      .dashboard-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
-      .dashboard-metrics ion-card:last-child { grid-column:auto; }
-      .dashboard-metrics ion-card:last-child .metric {
-        min-height:112px;display:grid;grid-template-columns:1fr;grid-template-areas:none;align-content:space-between;
-      }
-      .dashboard-metrics ion-card:last-child .label,
-      .dashboard-metrics ion-card:last-child strong,
-      .dashboard-metrics ion-card:last-child .caption { grid-area:auto; }
-      .dashboard-metrics ion-card:last-child strong { font-size:26px; }
-    }
   `]
 })
 export class DashboardPage {

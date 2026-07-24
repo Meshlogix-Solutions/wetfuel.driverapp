@@ -19,9 +19,7 @@ async function startApplication(): Promise<void> {
       provideAppInitializer(() => {
         inject(ThemeService).init();
       }),
-      provideAppInitializer(() => {
-        void inject(DriverStateService).initialize();
-      })
+      provideAppInitializer(() => inject(DriverStateService).initialize())
     ]
   });
 }

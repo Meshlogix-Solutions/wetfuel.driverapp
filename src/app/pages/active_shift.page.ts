@@ -48,5 +48,7 @@ export class ActiveShiftPage {
   get inventoryPercent():number{const v=this.vehicle;return v&&v.capacityGallons>0?Math.round(v.inventoryGallons/v.capacityGallons*100):0;}
   get vehicleSummary():string{return this.vehicle?`Unit ${this.vehicle.unitNumber} · ${this.inventoryPercent}% truck inventory`:'No vehicle selected';}
   private isToday(value:string):boolean{return new Date(value).toDateString()===new Date().toDateString();}
-  clockOut(): void { this.state.clockOut(); void this.router.navigateByUrl('/dashboard'); }
+  async clockOut(): Promise<void> {
+    if (await this.state.clockOut()) void this.router.navigateByUrl('/dashboard');
+  }
 }
