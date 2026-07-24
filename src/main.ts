@@ -7,7 +7,6 @@ import { routes } from './app/app.routes';
 import { ThemeService } from './app/services/theme.service';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { driverAuthInterceptor } from './app/interceptors/driver-auth.interceptor';
-import { DriverStateService } from './app/services/driver-state.service';
 
 async function startApplication(): Promise<void> {
   await bootstrapApplication(AppComponent, {
@@ -19,7 +18,6 @@ async function startApplication(): Promise<void> {
       provideAppInitializer(() => {
         inject(ThemeService).init();
       }),
-      provideAppInitializer(() => inject(DriverStateService).initialize())
     ]
   });
 }

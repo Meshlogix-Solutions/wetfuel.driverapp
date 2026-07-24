@@ -36,6 +36,7 @@ export interface DriverJob {
   id: string;
   jobNumber: string;
   customerName: string;
+  customerPhone?: string;
   siteName: string;
   siteAddress: string;
   scheduledAt: string;
@@ -65,6 +66,7 @@ export interface DriverShift {
   endedAt?: string;
   breakMinutes: number;
   durationHours: number;
+  vehicle?: DriverVehicle;
 }
 
 export interface DriverDelivery {
@@ -77,16 +79,6 @@ export interface DriverDelivery {
   completedAt: string;
 }
 export interface DriverEquipment {id:string;customerId:string;customerName:string;siteId:string;siteName:string;siteAddress:string;name:string;type:string;manufacturer?:string;model?:string;serialNumber?:string;capacityGallons?:number;fuelType:string;qrCode:string;status:string;estimatedLevelPercent?:number;latitude?:number;longitude?:number;photoUrl?:string;accessNotes?:string;}
-
-export interface DriverBootstrap {
-  profile: DriverProfile;
-  activeShift?: DriverShift;
-  shifts: DriverShift[];
-  vehicles: DriverVehicle[];
-  jobs: DriverJob[];
-  recentDeliveries: DriverDelivery[];
-  serverTime: string;
-}
 
 export interface OfflineDriverEvent {
   clientEventId: string;
@@ -102,10 +94,41 @@ interface ApiResponse<T> { data: T }
 export class DriverApiService {
   private readonly http = inject(HttpClient);
 
-  bootstrap(): Observable<DriverBootstrap> {
-    return this.http.get<ApiResponse<DriverBootstrap>>(
-      `${environment.apiUrl}/driver/app/bootstrap`
-    ).pipe(map(response => response.data));
+  // Each call below fetches exactly what one screen needs, scoped to the logged-in
+  // driver server-side - no bootstrap-everything call.
+  getCurrentDriver(): Observable<DriverProfile> {
+    return this.http.get<ApiResponse<DriverProfile>>(`${environment.apiUrl}/driver/me`)
+      .pipe(map(response => response.data));
+  }
+
+  getJobs(): Observable<DriverJob[]> {
+    return this.http.get<ApiResponse<DriverJob[]>>(`${environment.apiUrl}/driver/app/jobs`)
+      .pipe(map(response => response.data));
+  }
+
+  getJob(id: string): Observable<DriverJob> {
+    return this.http.get<ApiResponse<DriverJob>>(`${environment.apiUrl}/driver/app/jobs/${id}`)
+      .pipe(map(response => response.data));
+  }
+
+  getActiveShift(): Observable<DriverShift | null> {
+    return this.http.get<ApiResponse<DriverShift | null>>(`${environment.apiUrl}/driver/app/shift/active`)
+      .pipe(map(response => response.data));
+  }
+
+  getShifts(): Observable<DriverShift[]> {
+    return this.http.get<ApiResponse<DriverShift[]>>(`${environment.apiUrl}/driver/app/shifts`)
+      .pipe(map(response => response.data));
+  }
+
+  getVehicles(): Observable<DriverVehicle[]> {
+    return this.http.get<ApiResponse<DriverVehicle[]>>(`${environment.apiUrl}/driver/app/vehicles`)
+      .pipe(map(response => response.data));
+  }
+
+  getRecentDeliveries(): Observable<DriverDelivery[]> {
+    return this.http.get<ApiResponse<DriverDelivery[]>>(`${environment.apiUrl}/driver/app/deliveries/recent`)
+      .pipe(map(response => response.data));
   }
 
   sync(events: OfflineDriverEvent[]): Observable<{

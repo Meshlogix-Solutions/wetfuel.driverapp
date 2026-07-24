@@ -51,7 +51,7 @@ export class DeliverySummaryPage {
     // The server rejects a delivery.completed event whose gallons don't match the totalizer
     // difference — re-check that here (using the exact value about to be sent, no fallback
     // substitution) instead of trusting a validation that ran on an earlier screen the driver
-    // may have skipped past on resume (see job_details.page.ts's proof_pending shortcut).
+    // may have skipped past on resume (see job_details.page.ts's proof_submitted shortcut).
     const deliveredGallons = this.state.deliveredGallons();
     if (!deliveredGallons) {
       this.submitError = 'Delivered volume was not captured. Go back to fueling and re-enter it.';

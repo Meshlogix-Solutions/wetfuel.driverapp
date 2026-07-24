@@ -27,7 +27,7 @@ import { Router } from '@angular/router';
     <ion-card class="wf-card">
       <ion-card-content class="stack">
         <h2 class="section-title">Site contact</h2>
-        <div class="row"><div class="avatar">{{ contactInitials }}</div><div class="grow"><strong>{{ state.selectedJob()?.siteContactName || 'Site contact not provided' }}</strong><p class="caption" style="margin:4px 0 0">{{ state.selectedJob()?.siteContactPhone || 'No phone number provided' }}</p></div>@if(state.selectedJob()?.siteContactPhone){<ion-button fill="outline" shape="round" [href]="'tel:' + state.selectedJob()?.siteContactPhone"><ion-icon slot="icon-only" name="call-outline"></ion-icon></ion-button>}</div>
+        <div class="row"><div class="avatar">{{ contactInitials }}</div><div class="grow"><strong>{{ state.selectedJob()?.siteContactName || 'Site contact not provided' }}</strong><p class="caption" style="margin:4px 0 0">{{ state.selectedJob()?.siteContactPhone || state.selectedJob()?.customerPhone || 'No phone number provided' }}</p></div>@if(state.selectedJob()?.siteContactPhone || state.selectedJob()?.customerPhone){<ion-button fill="outline" shape="round" [href]="'tel:' + (state.selectedJob()?.siteContactPhone || state.selectedJob()?.customerPhone)"><ion-icon slot="icon-only" name="call-outline"></ion-icon></ion-button>}</div>
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card">
@@ -68,14 +68,14 @@ export class JobDetailsPage {
   get contactInitials(): string { return (this.state.selectedJob()?.siteContactName || 'SC').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase(); }
   get actionLabel(): string {
     const status = this.state.selectedJob()?.status;
-    return ({ assigned:'Start job and navigate', started:'Continue navigation', arrived:'Scan assigned equipment', equipment_verified:'Connect delivery meter', fueling:'Continue fueling', proof_pending:'Review delivery summary', completed:'View delivery history' } as Record<string,string>)[status || 'assigned'] || 'Continue job';
+    return ({ assigned:'Start job and navigate', started:'Continue navigation', arrived:'Scan assigned equipment', equipment_verified:'Connect delivery meter', fueled:'Continue to delivery proof', proof_submitted:'Review delivery summary', completed:'View delivery history' } as Record<string,string>)[status || 'assigned'] || 'Continue job';
   }
   async continueJob(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
     const currentStatus = job.status;
     if (currentStatus === 'assigned' && !(await this.state.updateJob(job.id, 'started'))) return;
-    const route = ({ assigned:'route-map', started:'route-map', arrived:'qr-scanner', equipment_verified:'meter', fueling:'fueling', proof_pending:'delivery-summary' } as Record<string,string>)[currentStatus];
+    const route = ({ assigned:'route-map', started:'route-map', arrived:'qr-scanner', equipment_verified:'meter', fueled:'delivery-proof', proof_submitted:'delivery-summary' } as Record<string,string>)[currentStatus];
     if (currentStatus === 'completed') { void this.router.navigateByUrl('/history'); return; }
     if (!route) { void this.router.navigateByUrl('/jobs'); return; }
     void this.router.navigate(['/jobs', job.id, route]);

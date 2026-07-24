@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverApiService, DriverVehicle } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 
 @Component({
@@ -13,7 +14,7 @@ import { DriverStateService } from '../services/driver-state.service';
 <wf-mobile-shell title="Select vehicle" subtitle="Shift setup" backRoute="/clock-in">
   <main class="screen-body stack">
     <p class="page-lead">Confirm the truck you are operating today. Inventory and meter records will be linked to this unit.</p>
-    <ion-card *ngFor="let vehicle of vehicles" class="wf-card selection-card" [class.selected]="selected === vehicle.id" (click)="selected = vehicle.id">
+    <ion-card *ngFor="let vehicle of vehicles()" class="wf-card selection-card" [class.selected]="selected === vehicle.id" (click)="selected = vehicle.id">
       <ion-card-content class="row">
         <div class="icon-tile"><ion-icon name="truck-outline"></ion-icon></div>
         <div class="grow">
@@ -36,24 +37,28 @@ import { DriverStateService } from '../services/driver-state.service';
   `
 })
 export class VehiclePage {
-  get vehicles() { return this.state.vehicles(); }
-  selected = this.state.selectedVehicleId() ?? this.vehicles[0]?.id ?? '';
-  constructor(readonly state: DriverStateService, private readonly router: Router) {}
-  async ionViewWillEnter(): Promise<void> {
-    try {
-      await this.state.refresh();
-      if (!this.selected) this.selected = this.vehicles[0]?.id ?? '';
-    } catch {
-      // Keep cached vehicles available while offline.
-    }
+  private readonly api = inject(DriverApiService);
+  readonly state = inject(DriverStateService);
+  private readonly router = inject(Router);
+
+  readonly vehicles = signal<DriverVehicle[]>([]);
+  selected = this.state.selectedVehicleId() ?? '';
+
+  ionViewWillEnter(): void {
+    this.api.getVehicles().subscribe({
+      next: vehicles => {
+        this.vehicles.set(vehicles);
+        if (!this.selected) this.selected = vehicles[0]?.id ?? '';
+      },
+    });
   }
   inventoryPercent(inventory: number, capacity: number): number {
     return capacity > 0 ? Math.round((inventory / capacity) * 100) : 0;
   }
   async confirm(): Promise<void> {
-    const vehicle = this.vehicles.find(item => item.id === this.selected);
+    const vehicle = this.vehicles().find(item => item.id === this.selected);
     if (!vehicle) return;
-    if (!(await this.state.setVehicle(vehicle.name))) return;
+    if (!(await this.state.setVehicle(vehicle.id))) return;
     void this.router.navigateByUrl('/pre-trip');
   }
 }

@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   IonButton, IonCard, IonCardContent, IonIcon, IonInput, IonItem
 } from '@ionic/angular/standalone';
-import { DriverStateService } from '../services/driver-state.service';
+import { DriverApiService, DriverDelivery } from '../services/driver-api.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
@@ -18,13 +18,13 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 <wf-mobile-shell title="Delivery history" subtitle="Completed jobs" backRoute="/dashboard">
   <main class="screen-body stack">
     <section class="grid-2">
-      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Recent</span><strong>{{ state.recentDeliveries().length }}</strong><span class="caption">deliveries</span></ion-card-content></ion-card>
+      <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Recent</span><strong>{{ recentDeliveries().length }}</strong><span class="caption">deliveries</span></ion-card-content></ion-card>
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Delivered</span><strong>{{ deliveredGallons }}</strong><span class="caption">gallons</span></ion-card-content></ion-card>
     </section>
     <ion-item><ion-input label="Search history" labelPlacement="stacked" placeholder="Customer, job ID or equipment"></ion-input></ion-item>
     <section>
       <h2 class="section-title">Recent deliveries</h2>
-      <ion-card *ngFor="let delivery of state.recentDeliveries()" class="wf-card">
+      <ion-card *ngFor="let delivery of recentDeliveries()" class="wf-card">
         <ion-card-content class="row">
           <div class="icon-tile"><ion-icon name="checkmark-circle-outline"></ion-icon></div>
           <div class="grow">
@@ -34,7 +34,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
           </div>
         </ion-card-content>
       </ion-card>
-      <ion-card *ngIf="state.recentDeliveries().length === 0" class="wf-card">
+      <ion-card *ngIf="recentDeliveries().length === 0" class="wf-card">
         <ion-card-content class="text-center">No completed deliveries yet.</ion-card-content>
       </ion-card>
     </section>
@@ -44,9 +44,15 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `,
 })
 export class HistoryPage {
-  constructor(readonly state: DriverStateService) {}
+  private readonly api = inject(DriverApiService);
+  readonly recentDeliveries = signal<DriverDelivery[]>([]);
+
+  constructor() {
+    this.api.getRecentDeliveries().subscribe({ next: d => this.recentDeliveries.set(d) });
+  }
+
   get deliveredGallons(): number {
-    return this.state.recentDeliveries().reduce(
+    return this.recentDeliveries().reduce(
       (sum, delivery) => sum + Number(delivery.deliveredGallons), 0);
   }
 }

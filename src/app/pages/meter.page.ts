@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverApiService, DriverShift } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 
 @Component({
@@ -16,14 +17,14 @@ import { DriverStateService } from '../services/driver-state.service';
       <ion-card-content>
         <div class="icon-tile" style="margin:0 auto 12px;background:rgba(255,255,255,.14);color:#fff"><ion-icon name="bluetooth-outline"></ion-icon></div>
         <span class="pill dark">{{ state.meterConnected() ? 'Ready' : 'Confirmation required' }}</span>
-        <h2 style="margin:14px 0 6px">{{ meterName }}</h2>
-        <p class="caption" style="margin:0">{{ state.selectedVehicle() }}</p>
+        <h2 style="margin:14px 0 6px">{{ meterName() }}</h2>
+        <p class="caption" style="margin:0">{{ vehicleLabel() }}</p>
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card">
       <ion-card-content class="stack">
         <div class="row-between"><span class="caption">Meter status</span><strong>{{ state.meterConnected() ? 'Driver confirmed ready' : 'Confirmation required' }}</strong></div>
-        <div class="row-between"><span class="caption">Vehicle</span><strong>{{ state.selectedVehicle() }}</strong></div>
+        <div class="row-between"><span class="caption">Vehicle</span><strong>{{ vehicleLabel() }}</strong></div>
         <div class="row-between"><span class="caption">Capture mode</span><strong>Manual totalizer entry</strong></div>
       </ion-card-content>
     </ion-card>
@@ -35,9 +36,17 @@ import { DriverStateService } from '../services/driver-state.service';
   `
 })
 export class MeterPage {
-  constructor(readonly state: DriverStateService) {}
-  get meterName(): string {
-    const vehicle = this.state.vehicles().find(item => item.id === this.state.selectedVehicleId());
-    return vehicle?.meterIdentifier || 'Manual delivery meter';
+  private readonly api = inject(DriverApiService);
+  readonly state = inject(DriverStateService);
+  readonly activeShift = signal<DriverShift | null>(null);
+
+  constructor() {
+    this.api.getActiveShift().subscribe({ next: s => this.activeShift.set(s) });
   }
+
+  readonly meterName = () => this.activeShift()?.vehicle?.meterIdentifier || 'Manual delivery meter';
+  readonly vehicleLabel = () => {
+    const v = this.activeShift()?.vehicle;
+    return v ? [v.name, v.make, v.model].filter(Boolean).join(' · ') : 'No vehicle selected';
+  };
 }

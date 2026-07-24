@@ -1,129 +1,101 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
   DriverApiService,
-  DriverBootstrap,
-  DriverDelivery,
   DriverEquipment,
   DriverJob,
-  DriverProfile,
   DriverVehicle,
   OfflineDriverEvent,
 } from './driver-api.service';
 import { ConnectivityService } from './connectivity.service';
 
-// Online-only for now: every action calls the server immediately and awaits the result.
-// Local state (job status, shift, etc.) only updates after the server confirms, so there's
-// no optimistic state that can drift from what's actually saved, and no offline queue that
-// can silently reject an action long after the driver has moved on.
+interface DeliveryDraft {
+  startingTotalizer?: number;
+  endingTotalizer?: number;
+  notes?: string;
+  meterPhotoCaptured: boolean;
+  equipmentPhotoCaptured: boolean;
+  meterPhotoUrl?: string;
+  equipmentPhotoUrl?: string;
+  deliveredGallons?: number;
+}
+
+const EMPTY_DRAFT: DeliveryDraft = { meterPhotoCaptured: false, equipmentPhotoCaptured: false };
+
+// Every screen fetches exactly the data it needs itself (via DriverApiService) instead of
+// one bootstrap-everything call. This service is left holding only two kinds of things:
+// (1) plain action/mutation passthroughs to the server, and (2) small bits of state that
+// genuinely span multiple screens mid-workflow (the job currently open, the vehicle picked
+// during today's clock-in flow, in-progress delivery-proof entries) - not cached copies of
+// server data that belongs to one particular page.
 @Injectable({ providedIn: 'root' })
 export class DriverStateService {
-  private readonly api = inject(DriverApiService);
-  private readonly connectivity = inject(ConnectivityService);
+  constructor(
+    private readonly api: DriverApiService,
+    private readonly connectivity: ConnectivityService,
+  ) {}
 
-  readonly profile = signal<DriverProfile | null>(null);
-  readonly vehicles = signal<DriverVehicle[]>([]);
-  readonly jobs = signal<DriverJob[]>([]);
-  readonly selectedJobId = signal<string | null>(null);
-  readonly selectedJob = computed(() =>
-    this.jobs().find(job => job.id === this.selectedJobId())
-      ?? this.jobs().find(job => !['completed', 'cancelled'].includes(job.status))
-      ?? null);
-  readonly recentDeliveries = signal<DriverDelivery[]>([]);
-  readonly verifiedEquipment = signal<DriverEquipment | null>(null);
-  readonly activeShift = signal<DriverBootstrap['activeShift']>(undefined);
-  readonly shifts = signal<DriverBootstrap['shifts']>([]);
-  readonly shiftActive = computed(() => !!this.activeShift());
-  readonly paused = computed(() => this.activeShift()?.status === 'on_break');
+  readonly selectedJob = signal<DriverJob | null>(null);
   readonly selectedVehicleId = signal<string | null>(null);
-  readonly selectedVehicle = computed(() => {
-    const vehicle = this.vehicles().find(item => item.id === this.selectedVehicleId());
-    return vehicle
-      ? [vehicle.name, vehicle.make, vehicle.model].filter(Boolean).join(' · ')
-      : 'No vehicle selected';
-  });
   readonly meterConnected = signal(false);
+  readonly verifiedEquipment = signal<DriverEquipment | null>(null);
   readonly deliveredGallons = signal(0);
-  readonly deliveryDraft = signal<{startingTotalizer?:number;endingTotalizer?:number;notes?:string;meterPhotoCaptured:boolean;equipmentPhotoCaptured:boolean;meterPhotoUrl?:string;equipmentPhotoUrl?:string}>({meterPhotoCaptured:false,equipmentPhotoCaptured:false});
+  readonly deliveryDraft = signal<DeliveryDraft>(EMPTY_DRAFT);
   readonly busy = signal(false);
   readonly syncError = signal('');
   readonly lastSyncAt = signal<string | null>(null);
-  readonly initialized = signal(false);
 
-  async initialize(): Promise<void> {
-    if (!localStorage.getItem('driver_access_token')) {
-      this.initialized.set(true);
-      return;
-    }
+  /** Fetches just this one job and makes it the current workflow job - the guard calls
+   *  this on every /jobs/:jobId navigation, so it's always fresh for whichever job the
+   *  driver is actually looking at. */
+  async loadJob(jobId: string): Promise<DriverJob | null> {
     try {
-      await this.refresh();
+      const job = await firstValueFrom(this.api.getJob(jobId));
+      this.selectedJob.set(job);
+      this.restoreDraft(jobId);
+      return job;
     } catch {
-      this.initialized.set(true);
-    }
-  }
-
-  async refresh(): Promise<void> {
-    try {
-      const bootstrap = await firstValueFrom(this.api.bootstrap());
-      this.applyBootstrap(bootstrap);
-    } finally {
-      this.initialized.set(true);
+      this.selectedJob.set(null);
+      return null;
     }
   }
 
   async clockIn(note?: string, latitude?: number, longitude?: number): Promise<boolean> {
     const shiftId = crypto.randomUUID();
-    if (!(await this.send('shift.clock_in', { vehicleId: this.selectedVehicleId(), note, latitude, longitude }, shiftId))) return false;
-    this.activeShift.set({
-      id: shiftId,
-      status: 'clocked_in',
-      vehicleId: this.selectedVehicleId() ?? undefined,
-      startedAt: new Date().toISOString(),
-      breakMinutes: 0,
-      durationHours: 0,
-    });
-    return true;
+    return this.send('shift.clock_in', { vehicleId: this.selectedVehicleId(), note, latitude, longitude }, shiftId);
   }
 
   async clockOut(): Promise<boolean> {
-    const shiftId = this.activeShift()?.id;
-    if (!(await this.send('shift.clock_out', {}, shiftId))) return false;
-    this.activeShift.set(undefined);
+    const shift = await this.fetchActiveShift();
+    if (!(await this.send('shift.clock_out', {}, shift?.id))) return false;
     this.selectedVehicleId.set(null);
     return true;
   }
 
-  async togglePause(): Promise<boolean> {
-    const shift = this.activeShift();
+  async togglePause(paused: boolean): Promise<boolean> {
+    const shift = await this.fetchActiveShift();
     if (!shift) return false;
-    const nextStatus = shift.status === 'on_break' ? 'clocked_in' : 'on_break';
-    if (!(await this.send(nextStatus === 'on_break' ? 'shift.pause' : 'shift.resume', {}, shift.id))) return false;
-    this.activeShift.set({ ...shift, status: nextStatus });
-    return true;
+    return this.send(paused ? 'shift.resume' : 'shift.pause', {}, shift.id);
   }
 
   connectMeter(): void {
     this.meterConnected.set(true);
   }
 
-  async setVehicle(vehicleName: string): Promise<boolean> {
-    const vehicle = this.vehicles().find(item =>
-      item.name === vehicleName || this.vehicleDisplay(item) === vehicleName);
-    if (!vehicle) return false;
-    const shift = this.activeShift();
-    if (!(await this.send('shift.vehicle_selected', { vehicleId: vehicle.id }, shift?.id))) return false;
-    this.selectedVehicleId.set(vehicle.id);
-    if (shift) this.activeShift.set({ ...shift, vehicleId: vehicle.id });
+  async setVehicle(vehicleId: string): Promise<boolean> {
+    const shift = await this.fetchActiveShift();
+    if (!(await this.send('shift.vehicle_selected', { vehicleId }, shift?.id))) return false;
+    this.selectedVehicleId.set(vehicleId);
     return true;
   }
 
-  selectJob(jobId: string): void {
-    if (this.selectedJobId() === jobId) return;
-    this.selectedJobId.set(jobId);
-    this.verifiedEquipment.set(null);
+  async lookupEquipment(qrCode: string): Promise<DriverEquipment> {
+    const job = this.selectedJob();
+    if (!job) throw new Error('No selected job.');
+    const equipment = await firstValueFrom(this.api.lookupEquipment(job.id, qrCode));
+    this.verifiedEquipment.set(equipment);
+    return equipment;
   }
-
-  async lookupEquipment(qrCode:string):Promise<DriverEquipment>{const job=this.selectedJob();if(!job)throw new Error('No selected job.');const equipment=await firstValueFrom(this.api.lookupEquipment(job.id,qrCode));this.verifiedEquipment.set(equipment);return equipment;}
 
   async submitInspection(
     vehicleId: string,
@@ -140,32 +112,29 @@ export class DriverStateService {
     }, crypto.randomUUID());
   }
 
-  async updateJob(jobId: string, action: 'started' | 'arrived' | 'equipment_verified' | 'fueling' | 'proof_pending', payload: Record<string, unknown> = {}): Promise<boolean> {
-    const job = this.jobs().find(item => item.id === jobId);
+  async updateJob(jobId: string, action: 'started' | 'arrived' | 'equipment_verified' | 'fueled' | 'proof_submitted', payload: Record<string, unknown> = {}): Promise<boolean> {
+    const job = this.selectedJob();
     const expected: Record<string, string> = {
       assigned: 'started',
       started: 'arrived',
       arrived: 'equipment_verified',
-      equipment_verified: 'fueling',
-      fueling: 'proof_pending',
+      equipment_verified: 'fueled',
+      fueled: 'proof_submitted',
     };
-    if (action === 'started' && (!this.activeShift() || !this.selectedVehicleId())) {
-      this.syncError.set('Clock in and select the delivery vehicle before starting a job.');
-      return false;
+    if (job && job.id === jobId) {
+      // Re-entering delivery-proof to correct photos/totalizers after already reaching
+      // proof_submitted re-submits the same transition - that's a no-op, not an error.
+      if (job.status === action) return true;
+      if (expected[job.status] !== action) {
+        this.syncError.set(`Job cannot move from '${job.status}' to '${action}'.`);
+        return false;
+      }
     }
-    if (!job) {
-      this.syncError.set(`Job cannot move from 'unknown' to '${action}'.`);
-      return false;
-    }
-    // Re-entering delivery-proof to correct photos/totalizers after already reaching
-    // proof_pending re-submits the same transition — that's a no-op, not an error.
-    if (job.status === action) return true;
-    if (expected[job.status] !== action) {
-      this.syncError.set(`Job cannot move from '${job.status}' to '${action}'.`);
-      return false;
-    }
+    // Shift/vehicle prerequisites for 'started' are validated server-side (see
+    // SyncDriverAppEventsCommandHandler) - there's no reliable local cache of that to
+    // pre-check against a job opened fresh this session, so let the server's error surface.
     if (!(await this.send(`job.${action}`, payload, jobId))) return false;
-    this.jobs.update(jobs => jobs.map(j => j.id === jobId ? { ...j, status: action } : j));
+    if (job && job.id === jobId) this.selectedJob.set({ ...job, status: action });
     return true;
   }
 
@@ -180,23 +149,37 @@ export class DriverStateService {
       proof?: Record<string, unknown>;
     } = {},
   ): Promise<boolean> {
-    const job = this.jobs().find(item => item.id === jobId);
-    if (!job || job.status !== 'proof_pending') {
+    const job = this.selectedJob();
+    if (!job || job.id !== jobId || job.status !== 'proof_submitted') {
       this.syncError.set(`Job cannot move from '${job?.status ?? 'unknown'}' to 'completed'.`);
       return false;
     }
+    // The truck's inventory decrement on the server needs a real vehicleId - selectedVehicleId
+    // is only populated by this session's own clock-in/vehicle-select flow, so fall back to
+    // asking the server which vehicle is actually on the open shift (e.g. after an app restart
+    // mid-shift, where nothing in this session ever set selectedVehicleId).
+    const vehicleId = this.selectedVehicleId() ?? (await this.fetchActiveShift())?.vehicleId;
     if (!(await this.send('delivery.completed', {
-      vehicleId: this.selectedVehicleId(),
+      vehicleId,
       deliveredGallons,
       ...details,
     }, jobId))) return false;
     this.deliveredGallons.set(deliveredGallons);
-    this.jobs.update(jobs => jobs.map(j => j.id === jobId ? { ...j, status: 'completed' } : j));
+    this.selectedJob.set({ ...job, status: 'completed' });
+    this.clearDraft(jobId);
     return true;
   }
 
-  setDeliveryVolume(gallons:number):void{this.deliveredGallons.set(gallons);}
-  setDeliveryProof(details:{startingTotalizer?:number;endingTotalizer?:number;notes?:string;meterPhotoCaptured:boolean;equipmentPhotoCaptured:boolean;meterPhotoUrl?:string;equipmentPhotoUrl?:string}):void{this.deliveryDraft.set(details);}
+  setDeliveryVolume(gallons: number): void {
+    this.deliveredGallons.set(gallons);
+    this.persistDraft({ ...this.deliveryDraft(), deliveredGallons: gallons });
+  }
+
+  setDeliveryProof(details: Omit<DeliveryDraft, 'deliveredGallons'>): void {
+    const draft: DeliveryDraft = { ...details, deliveredGallons: this.deliveredGallons() };
+    this.deliveryDraft.set(draft);
+    this.persistDraft(draft);
+  }
 
   async uploadEvidence(file: File): Promise<string> {
     return await firstValueFrom(this.api.uploadFile(file));
@@ -216,6 +199,40 @@ export class DriverStateService {
 
   vehicleDisplay(vehicle: DriverVehicle): string {
     return [vehicle.name, vehicle.make, vehicle.model].filter(Boolean).join(' · ');
+  }
+
+  private async fetchActiveShift() {
+    try {
+      return await firstValueFrom(this.api.getActiveShift());
+    } catch {
+      return null;
+    }
+  }
+
+  // Delivery-proof photos/totalizers/notes are entered over several steps and screens - without
+  // persisting past just the in-memory signal, a reload (or the OS backgrounding/killing the
+  // PWA) wipes already-uploaded photos from the UI even though the files are still on the
+  // server, and forces the driver to redo the whole proof step. Key by job id so drivers with
+  // multiple jobs don't see one job's draft bleed into another's.
+  private draftStorageKey(jobId: string): string {
+    return `driver_delivery_draft:${jobId}`;
+  }
+
+  private restoreDraft(jobId: string | null): void {
+    const raw = jobId ? localStorage.getItem(this.draftStorageKey(jobId)) : null;
+    const draft: DeliveryDraft = raw ? JSON.parse(raw) : EMPTY_DRAFT;
+    this.deliveryDraft.set(draft);
+    this.deliveredGallons.set(draft.deliveredGallons ?? 0);
+  }
+
+  private persistDraft(draft: DeliveryDraft): void {
+    const jobId = this.selectedJob()?.id;
+    if (!jobId) return;
+    localStorage.setItem(this.draftStorageKey(jobId), JSON.stringify(draft));
+  }
+
+  private clearDraft(jobId: string): void {
+    localStorage.removeItem(this.draftStorageKey(jobId));
   }
 
   /** Sends a single event to the server immediately and waits for confirmation.
@@ -245,22 +262,6 @@ export class DriverStateService {
       return false;
     } finally {
       this.busy.set(false);
-    }
-  }
-
-  private applyBootstrap(bootstrap: DriverBootstrap): void {
-    this.profile.set(bootstrap.profile);
-    this.vehicles.set(bootstrap.vehicles);
-    this.jobs.set(bootstrap.jobs);
-    this.recentDeliveries.set(bootstrap.recentDeliveries);
-    this.activeShift.set(bootstrap.activeShift);
-    this.shifts.set(bootstrap.shifts);
-    this.selectedVehicleId.set(
-      bootstrap.activeShift?.vehicleId
-        ?? bootstrap.profile.assignedVehicleId
-        ?? null);
-    if (!this.jobs().some(job => job.id === this.selectedJobId() && !['completed','cancelled'].includes(job.status))) {
-      this.selectedJobId.set(this.jobs().find(job => !['completed','cancelled'].includes(job.status))?.id ?? null);
     }
   }
 }

@@ -88,6 +88,7 @@ export class DeliveryProofPage implements OnInit {
       const url = await this.state.uploadEvidence(file);
       if (kind === 'meter') this.meterPhotoUrl = url;
       else this.equipmentPhotoUrl = url;
+      this.saveDraft();
     } catch (error: unknown) {
       const failure = error as { error?: { message?: string }; message?: string };
       this.uploadError = failure.error?.message ?? failure.message ?? 'The photo could not be uploaded.';
@@ -102,12 +103,16 @@ export class DeliveryProofPage implements OnInit {
   async review(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job || !this.canReview) return;
-    this.state.setDeliveryProof({
-      startingTotalizer:this.startingTotalizer, endingTotalizer:this.endingTotalizer, notes:this.notes,
-      meterPhotoCaptured:true, equipmentPhotoCaptured:true,
-      meterPhotoUrl:this.meterPhotoUrl, equipmentPhotoUrl:this.equipmentPhotoUrl,
-    });
-    if (!(await this.state.updateJob(job.id, 'proof_pending'))) return;
+    this.saveDraft();
+    if (!(await this.state.updateJob(job.id, 'proof_submitted'))) return;
     void this.router.navigate(['/jobs', job.id, 'delivery-summary']);
+  }
+
+  private saveDraft(): void {
+    this.state.setDeliveryProof({
+      startingTotalizer: this.startingTotalizer, endingTotalizer: this.endingTotalizer, notes: this.notes,
+      meterPhotoCaptured: !!this.meterPhotoUrl, equipmentPhotoCaptured: !!this.equipmentPhotoUrl,
+      meterPhotoUrl: this.meterPhotoUrl, equipmentPhotoUrl: this.equipmentPhotoUrl,
+    });
   }
 }

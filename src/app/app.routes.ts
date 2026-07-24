@@ -1,11 +1,12 @@
 import { Routes } from '@angular/router';
 import { driverAuthGuard } from './guards/driver-auth.guard';
 import { jobWorkflowGuard } from './guards/job-workflow.guard';
+import { redirectIfAuthenticatedGuard } from './guards/redirect-if-authenticated.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'splash' },
-  { path: 'splash', loadComponent: () => import('./pages/splash.page').then(m => m.SplashPage) },
-  { path: 'login', loadComponent: () => import('./pages/login.page').then(m => m.LoginPage) },
+  { path: 'splash', canActivate: [redirectIfAuthenticatedGuard], loadComponent: () => import('./pages/splash.page').then(m => m.SplashPage) },
+  { path: 'login', canActivate: [redirectIfAuthenticatedGuard], loadComponent: () => import('./pages/login.page').then(m => m.LoginPage) },
   { path: 'authenticate', loadComponent: () => import('./pages/authenticate.page').then(m => m.AuthenticatePage) },
   { path: 'verification', loadComponent: () => import('./pages/verification.page').then(m => m.VerificationPage) },
   {
@@ -24,9 +25,9 @@ export const routes: Routes = [
       { path: 'jobs/:jobId/qr-scanner', canActivate:[jobWorkflowGuard], data:{statuses:['arrived']}, loadComponent: () => import('./pages/qr_scanner.page').then(m => m.QrScannerPage) },
       { path: 'jobs/:jobId/equipment', canActivate:[jobWorkflowGuard], data:{statuses:['arrived']}, loadComponent: () => import('./pages/equipment.page').then(m => m.EquipmentPage) },
       { path: 'jobs/:jobId/meter', canActivate:[jobWorkflowGuard], data:{statuses:['equipment_verified']}, loadComponent: () => import('./pages/meter.page').then(m => m.MeterPage) },
-      { path: 'jobs/:jobId/fueling', canActivate:[jobWorkflowGuard], data:{statuses:['equipment_verified','fueling']}, loadComponent: () => import('./pages/fueling.page').then(m => m.FuelingPage) },
-      { path: 'jobs/:jobId/delivery-proof', canActivate:[jobWorkflowGuard], data:{statuses:['fueling','proof_pending']}, loadComponent: () => import('./pages/delivery_proof.page').then(m => m.DeliveryProofPage) },
-      { path: 'jobs/:jobId/delivery-summary', canActivate:[jobWorkflowGuard], data:{statuses:['proof_pending']}, loadComponent: () => import('./pages/delivery_summary.page').then(m => m.DeliverySummaryPage) },
+      { path: 'jobs/:jobId/fueling', canActivate:[jobWorkflowGuard], data:{statuses:['equipment_verified']}, loadComponent: () => import('./pages/fueling.page').then(m => m.FuelingPage) },
+      { path: 'jobs/:jobId/delivery-proof', canActivate:[jobWorkflowGuard], data:{statuses:['fueled','proof_submitted']}, loadComponent: () => import('./pages/delivery_proof.page').then(m => m.DeliveryProofPage) },
+      { path: 'jobs/:jobId/delivery-summary', canActivate:[jobWorkflowGuard], data:{statuses:['proof_submitted']}, loadComponent: () => import('./pages/delivery_summary.page').then(m => m.DeliverySummaryPage) },
       { path: 'job-details', redirectTo: 'jobs' },
       { path: 'route-map', redirectTo: 'jobs' },
       { path: 'arrival', redirectTo: 'jobs' },

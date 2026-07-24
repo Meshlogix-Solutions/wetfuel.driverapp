@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon, IonLabel, IonSegment, IonSegmentButton } from '@ionic/angular/standalone';
+import { DriverApiService, DriverJob } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
@@ -24,11 +25,11 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
       }
     </ion-segment>
 
-    @if (state.syncError()) {
+    @if (syncError()) {
       <ion-card class="wf-card" style="border:1px solid var(--ion-color-danger)">
         <ion-card-content>
           <strong style="color:var(--ion-color-danger)">Sync issue</strong>
-          <p class="caption" style="margin:4px 0 0">{{ state.syncError() }}</p>
+          <p class="caption" style="margin:4px 0 0">{{ syncError() }}</p>
         </ion-card-content>
       </ion-card>
     }
@@ -50,8 +51,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
 
     @for (job of visibleJobs; track job.id) {
       <ion-card class="wf-card"
-        [routerLink]="job.status === 'completed' ? '/history' : ['/jobs', job.id]"
-        (click)="state.selectJob(job.id)">
+        [routerLink]="job.status === 'completed' ? '/history' : ['/jobs', job.id]">
         <ion-card-content>
           <div class="row-between">
             <span class="pill" [ngClass]="statusClass(job.status)">{{ statusLabel(job.status) }}</span>
@@ -83,7 +83,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
     }
 
     @if (routeJob) {
-      <ion-button class="wf-button wf-secondary" expand="block" [routerLink]="['/jobs', routeJob.id, 'route-map']" (click)="state.selectJob(routeJob.id)">Continue active route</ion-button>
+      <ion-button class="wf-button wf-secondary" expand="block" [routerLink]="['/jobs', routeJob.id, 'route-map']">Continue active route</ion-button>
     }
   </main>
 </wf-mobile-shell>
@@ -110,7 +110,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
 })
 export class JobsPage {
   private readonly activeStatuses = new Set([
-    'pending', 'assigned', 'started', 'arrived', 'equipment_verified', 'fueling', 'proof_pending',
+    'pending', 'assigned', 'started', 'arrived', 'equipment_verified', 'fueled', 'proof_submitted',
   ]);
   readonly filters: ReadonlyArray<{ key: JobFilter; label: string }> = [
     { key: 'active', label: 'Active' },
@@ -120,10 +120,13 @@ export class JobsPage {
   ];
   activeFilter: JobFilter = 'active';
 
-  constructor(readonly state: DriverStateService) {}
+  private readonly api = inject(DriverApiService);
+  private readonly state = inject(DriverStateService);
+  readonly syncError = this.state.syncError;
+  readonly jobs = signal<DriverJob[]>([]);
 
   ionViewWillEnter(): void {
-    void this.state.refresh().catch(() => undefined);
+    this.api.getJobs().subscribe({ next: jobs => this.jobs.set(jobs) });
   }
 
   get visibleJobs() {
@@ -170,7 +173,7 @@ export class JobsPage {
   }
 
   private get sortedJobs() {
-    return [...this.state.jobs()].sort(
+    return [...this.jobs()].sort(
       (left, right) => new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime(),
     );
   }

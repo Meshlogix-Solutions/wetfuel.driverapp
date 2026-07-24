@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { User, UserManager } from 'oidc-client-ts';
+import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
@@ -13,6 +13,10 @@ export class DriverAuthService {
     scope: 'openid profile email offline_access',
     response_type: 'code',
     automaticSilentRenew: true,
+    // oidc-client-ts defaults to sessionStorage, which is wiped every time this PWA is closed
+    // and reopened - on mobile that's essentially every launch, so drivers who never logged
+    // out were still bounced to /login on every app restart. localStorage survives that.
+    userStore: new WebStorageStateStore({ store: window.localStorage }),
   });
 
   constructor(private readonly router: Router) {

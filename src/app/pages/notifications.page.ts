@@ -1,9 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
-import { DriverStateService } from '../services/driver-state.service';
+import { DriverApiService, DriverJob, DriverProfile } from '../services/driver-api.service';
 
 @Component({
   selector: 'app-notifications',
@@ -24,9 +24,17 @@ import { DriverStateService } from '../services/driver-state.service';
   `
 })
 export class NotificationsPage {
-  constructor(readonly state: DriverStateService) {}
-  assignedJobs = () => this.state.jobs().filter(job => job.status === 'assigned').slice(0, 5);
-  expiringCertifications = () => this.state.profile()?.certifications
+  private readonly api = inject(DriverApiService);
+  readonly jobs = signal<DriverJob[]>([]);
+  readonly profile = signal<DriverProfile | null>(null);
+
+  constructor() {
+    this.api.getJobs().subscribe({ next: j => this.jobs.set(j) });
+    this.api.getCurrentDriver().subscribe({ next: p => this.profile.set(p) });
+  }
+
+  assignedJobs = () => this.jobs().filter(job => job.status === 'assigned').slice(0, 5);
+  expiringCertifications = () => this.profile()?.certifications
     .filter(item => item.status !== 'current').slice(0, 5) ?? [];
   unreadCount = () => this.assignedJobs().length
     + this.expiringCertifications().length;

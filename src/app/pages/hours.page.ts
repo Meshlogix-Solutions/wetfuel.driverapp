@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { IonCard, IonCardContent } from '@ionic/angular/standalone';
-import { DriverStateService } from '../services/driver-state.service';
+import { DriverApiService, DriverProfile, DriverShift } from '../services/driver-api.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
@@ -13,12 +13,12 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       <main class="screen-body stack">
         <ion-card class="wf-card hero-card"><ion-card-content>
           <span class="pill dark">{{ weekLabel }}</span>
-          <h2 style="font-size:42px;margin:18px 0 4px;letter-spacing:-.05em">{{ state.profile()?.hoursThisWeek ?? 0 }}h</h2>
+          <h2 style="font-size:42px;margin:18px 0 4px;letter-spacing:-.05em">{{ profile()?.hoursThisWeek ?? 0 }}h</h2>
           <p class="caption" style="margin:0">{{ remainingHours }}h remaining to 40 hours</p>
           <div style="height:15px"></div><div class="progress-track orange"><span [style.width.%]="progress"></span></div>
         </ion-card-content></ion-card>
         <section><h2 class="section-title">Recorded shifts</h2>
-          @for (shift of state.shifts(); track shift.id) {
+          @for (shift of shifts(); track shift.id) {
             <ion-card class="wf-card"><ion-card-content class="row">
               <div class="grow"><h3>{{ shift.startedAt | date:'fullDate' }}</h3><p class="caption">{{ shift.startedAt | date:'shortTime' }} – {{ shift.endedAt ? (shift.endedAt | date:'shortTime') : 'Active now' }} · {{ shift.breakMinutes }}m break</p></div>
               <strong>{{ shift.durationHours | number:'1.1-2' }}h</strong>
@@ -32,8 +32,16 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `,
 })
 export class HoursPage {
-  constructor(readonly state: DriverStateService) {}
-  get remainingHours():number{return Math.max(0,Math.round((40-(this.state.profile()?.hoursThisWeek??0))*10)/10);}
-  get progress():number{return Math.min(100,Math.round((this.state.profile()?.hoursThisWeek??0)/40*100));}
+  private readonly api = inject(DriverApiService);
+  readonly profile = signal<DriverProfile | null>(null);
+  readonly shifts = signal<DriverShift[]>([]);
+
+  constructor() {
+    this.api.getCurrentDriver().subscribe({ next: p => this.profile.set(p) });
+    this.api.getShifts().subscribe({ next: s => this.shifts.set(s) });
+  }
+
+  get remainingHours():number{return Math.max(0,Math.round((40-(this.profile()?.hoursThisWeek??0))*10)/10);}
+  get progress():number{return Math.min(100,Math.round((this.profile()?.hoursThisWeek??0)/40*100));}
   get weekLabel():string{const now=new Date(),day=(now.getDay()+6)%7,start=new Date(now);start.setDate(now.getDate()-day);const end=new Date(start);end.setDate(start.getDate()+6);return `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;}
 }
