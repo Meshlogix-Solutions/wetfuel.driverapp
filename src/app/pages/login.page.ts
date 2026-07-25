@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, IonButton } from '@ionic/angular/standalone';
 import { DriverAuthService } from '../services/driver-auth.service';
 
@@ -20,10 +20,10 @@ import { DriverAuthService } from '../services/driver-auth.service';
             <p class="page-lead">Sign in to see today's route, complete inspections and record deliveries.</p>
           </div>
           <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
-          <p class="caption" style="margin:0">You will enter your password on the secure WetFuel sign-in page.</p>
+          <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
           @if (error) { <p style="color:var(--ion-color-danger)">{{ error }}</p> }
-          <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Opening sign-in...' : 'Sign in securely' }}</ion-button>
+          <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Signing in...' : 'Sign in securely' }}</ion-button>
          </ion-card-content>
       </ion-card>
     </div>
@@ -33,18 +33,23 @@ import { DriverAuthService } from '../services/driver-auth.service';
 })
 export class LoginPage {
   identity = 'driver@wetfuel.com';
+  password = '';
   loading = false;
   error = '';
-  constructor(private readonly auth: DriverAuthService) {}
+  constructor(
+    private readonly auth: DriverAuthService,
+    private readonly router: Router,
+  ) {}
 
   async login(): Promise<void> {
     this.loading = true;
     this.error = '';
     try {
-      await this.auth.login(this.identity);
+      await this.auth.login(this.identity, this.password);
+      await this.router.navigateByUrl('/dashboard');
     } catch (err: unknown) {
-      const failure = err as { message?: string; error_description?: string };
-      this.error = failure.error_description ?? failure.message ?? String(err);
+      const failure = err as { error?: { message?: string }; message?: string };
+      this.error = failure.error?.message ?? failure.message ?? 'Invalid email or password.';
     } finally {
       this.loading = false;
     }

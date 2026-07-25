@@ -1,17 +1,31 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { catchError, throwError } from 'rxjs';
+import { from, switchMap, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { DriverAuthService } from '../services/driver-auth.service';
 
 export const driverAuthInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(DriverAuthService);
-  const token = localStorage.getItem('driver_access_token');
-  return next(token
-    ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-    : request).pipe(
-      catchError(error => {
-        if (error.status === 401) auth.expireSession();
-        return throwError(() => error);
-      }),
-    );
+  const attach = (req: typeof request) => {
+    const token = localStorage.getItem('driver_access_token');
+    return token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req;
+  };
+
+  return next(attach(request)).pipe(
+    catchError((error: unknown) => {
+      // /auth/* calls (login/refresh/logout) are excluded - a failed refresh must not try to refresh itself.
+      if (error instanceof HttpErrorResponse && error.status === 401 && !request.url.includes('/auth/')) {
+        return from(auth.refreshToken()).pipe(
+          switchMap(refreshed => {
+            if (!refreshed) {
+              auth.expireSession();
+              return throwError(() => error);
+            }
+            return next(attach(request));
+          }),
+        );
+      }
+      return throwError(() => error);
+    }),
+  );
 };

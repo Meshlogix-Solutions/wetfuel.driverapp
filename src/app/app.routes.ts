@@ -7,7 +7,6 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'splash' },
   { path: 'splash', canActivate: [redirectIfAuthenticatedGuard], loadComponent: () => import('./pages/splash.page').then(m => m.SplashPage) },
   { path: 'login', canActivate: [redirectIfAuthenticatedGuard], loadComponent: () => import('./pages/login.page').then(m => m.LoginPage) },
-  { path: 'authenticate', loadComponent: () => import('./pages/authenticate.page').then(m => m.AuthenticatePage) },
   { path: 'verification', loadComponent: () => import('./pages/verification.page').then(m => m.VerificationPage) },
   {
     path: '',
