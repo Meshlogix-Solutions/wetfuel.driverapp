@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, catchError, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface DriverProfile {
@@ -16,6 +16,7 @@ export interface DriverProfile {
   certifications: Array<{ id: string; name: string; expiryDate: string; status: string }>;
   assignedVehicleId?: string;
   assignedVehicleName?: string;
+  assignedVehicles?: DriverVehicle[];
   hoursThisWeek: number;
 }
 
@@ -23,6 +24,7 @@ export interface DriverVehicle {
   id: string;
   name: string;
   unitNumber: string;
+  licensePlate: string;
   make?: string;
   model?: string;
   year?: number;
@@ -64,6 +66,7 @@ export interface DriverShift {
   vehicleId?: string;
   startedAt: string;
   endedAt?: string;
+  breakStartedAt?: string;
   breakMinutes: number;
   durationHours: number;
   vehicle?: DriverVehicle;
@@ -78,6 +81,8 @@ export interface DriverDelivery {
   deliveredGallons: number;
   completedAt: string;
 }
+export interface DriverDashboardSummary { plannedJobs:number; completedJobs:number; plannedGallons:number; deliveredGallons:number; }
+export interface DriverDashboardJobs { activeJob:DriverJob|null; nextJob:DriverJob|null; nextJobSequence:number; }
 export interface DriverEquipment {id:string;customerId:string;customerName:string;siteId:string;siteName:string;siteAddress:string;name:string;type:string;manufacturer?:string;model?:string;serialNumber?:string;capacityGallons?:number;fuelType:string;qrCode:string;status:string;estimatedLevelPercent?:number;latitude?:number;longitude?:number;photoUrl?:string;accessNotes?:string;}
 
 export interface OfflineDriverEvent {
@@ -131,6 +136,26 @@ export class DriverApiService {
       .pipe(map(response => response.data));
   }
 
+  getDashboardSummary(start: Date, end: Date): Observable<DriverDashboardSummary> {
+    const params = { start: start.toISOString(), end: end.toISOString() };
+    return this.http.get<ApiResponse<DriverDashboardSummary>>(`${environment.apiUrl}/driver/app/dashboard-summary`, { params })
+      .pipe(map(response => response.data));
+  }
+
+  getDashboardJobs(): Observable<DriverDashboardJobs> {
+    return this.http.get<ApiResponse<DriverDashboardJobs>>(`${environment.apiUrl}/driver/app/dashboard-jobs`)
+      .pipe(
+        map(response => response.data),
+        catchError(() => this.getJobs().pipe(map(jobs => {
+          const activeStatuses = ['started', 'arrived', 'equipment_verified', 'fueled', 'proof_submitted'];
+          const activeJob = jobs.find(job => activeStatuses.includes(job.status)) ?? null;
+          const assigned = jobs.filter(job => job.status === 'assigned')
+            .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+          return { activeJob, nextJob:assigned[0] ?? null, nextJobSequence:assigned.length ? 1 : 0 };
+        }))),
+      );
+  }
+
   sync(events: OfflineDriverEvent[]): Observable<{
     acceptedEventIds: string[];
     alreadyProcessedEventIds: string[];
@@ -153,5 +178,9 @@ export class DriverApiService {
     form.append('file', file, file.name);
     return this.http.post<ApiResponse<{ filePath: string }>>(`${environment.apiUrl}/user/UploadFile`, form)
       .pipe(map(response => response.data.filePath));
+  }
+
+  deleteUploadedFile(url: string): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/user/UploadFile`, { params: { url } });
   }
 }

@@ -4,6 +4,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { IonContent, IonIcon } from '@ionic/angular/standalone';
 import { ConnectivityService } from '../services/connectivity.service';
 import { ThemeService } from '../services/theme.service';
+import { DriverNotificationService } from '../services/driver-notification.service';
 
 @Component({
   selector: 'wf-mobile-shell',
@@ -11,8 +12,8 @@ import { ThemeService } from '../services/theme.service';
   imports: [CommonModule, RouterLink, RouterLinkActive, IonContent, IonIcon],
   template: `
     <ion-content [fullscreen]="true">
-      <div class="app-frame" [style.--wf-screen-bottom-padding]="showNav ? '110px' : '28px'">
-        <header class="topbar">
+      <div class="app-frame" [class.dashboard-shell]="dashboardStyle" [style.--wf-screen-bottom-padding]="showNav ? '110px' : '28px'">
+        <header class="topbar" *ngIf="!hideHeader">
           <div class="topbar-left">
             <a *ngIf="backRoute" class="top-icon" [routerLink]="backRoute" aria-label="Back">
               <ion-icon name="arrow-back-outline"></ion-icon>
@@ -23,7 +24,7 @@ import { ThemeService } from '../services/theme.service';
             </div>
           </div>
           <div class="topbar-actions">
-            <button *ngIf="showNetwork" class="network-pill" [class.offline]="!connectivity.online()" (click)="connectivity.toggleDemoState()">
+            <button *ngIf="showNetwork" class="network-pill" [class.icon-only]="networkIconOnly" [class.offline]="!connectivity.online()" (click)="connectivity.toggleDemoState()">
               <ion-icon [name]="connectivity.online() ? 'wifi-outline' : 'cloud-offline-outline'"></ion-icon>
               <span class="network-pill-label">{{ connectivity.online() ? 'Online' : 'Offline' }}</span>
             </button>
@@ -42,7 +43,8 @@ import { ThemeService } from '../services/theme.service';
               </svg>
             </button>
             <a class="top-icon" routerLink="/notifications" aria-label="Notifications">
-              <ion-icon name="notifications-outline"></ion-icon><span class="notification-dot"></span>
+              <ion-icon name="notifications-outline"></ion-icon>
+              <span *ngIf="notifications.unreadCount()" class="notification-badge">{{ badgeLabel }}</span>
             </a>
           </div>
         </header>
@@ -68,9 +70,11 @@ import { ThemeService } from '../services/theme.service';
     .eyebrow { color: var(--wf-muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
     .top-icon { position: relative; width: 41px; height: 41px; border: 1px solid var(--wf-border); border-radius: 13px; background: var(--wf-surface); display: grid; place-items: center; color: var(--wf-primary); text-decoration: none; flex: 0 0 auto; }
     .top-icon ion-icon { font-size: 21px; }
-    .notification-dot { position: absolute; right: 7px; top: 7px; width: 8px; height: 8px; background: var(--wf-accent); border: 2px solid var(--wf-surface); border-radius: 50%; }
+    .notification-badge { position: absolute; right: -5px; top: -6px; min-width: 19px; height: 19px; padding: 0 5px; display: grid; place-items: center; border-radius: 10px; background: var(--wf-danger, #d92d20); color: #fff; border: 2px solid var(--wf-surface); font-size: 10px; font-weight: 900; line-height: 1; }
     .network-pill { min-height: 36px; border: 1px solid #cde8dc; background: #eaf8f1; color: #1b7b51; border-radius: 999px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 850; }
     .network-pill.offline { background: #fff2e4; color: #a55b13; border-color: #f0d1ae; }
+    .network-pill.icon-only { width: 41px; min-width: 41px; height: 41px; padding: 0; justify-content: center; border-radius: 13px; }
+    .network-pill.icon-only .network-pill-label { display: none; }
     .network-pill ion-icon { font-size: 16px; flex: 0 0 auto; }
     .theme-toggle { position: relative; width: 41px; height: 41px; border: 1px solid var(--wf-border); border-radius: 13px; background: var(--wf-surface); display: grid; place-items: center; color: var(--wf-muted); cursor: pointer; flex: 0 0 auto; padding: 0; }
     .theme-toggle__icon { width: 21px; height: 21px; transition: transform .2s ease, opacity .2s ease; }
@@ -81,6 +85,11 @@ import { ThemeService } from '../services/theme.service';
     .bottom-nav a { color: var(--wf-muted); text-decoration: none; display: grid; place-items: center; align-content: center; gap: 4px; border-radius: 15px; font-size: 11px; font-weight: 800; }
     .bottom-nav ion-icon { font-size: 21px; }
     .bottom-nav a.active { color: var(--wf-primary); background: var(--wf-primary-soft); }
+    .app-frame.dashboard-shell { min-height: 100%; background: #090a0e; color: #f7f7f8; }
+    .dashboard-shell .bottom-nav { bottom: 0; width: min(100%, 720px); height: calc(78px + env(safe-area-inset-bottom)); padding: 8px 18px max(8px, env(safe-area-inset-bottom)); border-radius: 0; border-right: 0; border-bottom: 0; border-left: 0; border-color: #24262d; background: rgba(9,10,14,.98); box-shadow: 0 -12px 30px rgba(0,0,0,.24); }
+    .dashboard-shell .bottom-nav a { color: #9b9ca3; background: transparent; font-size: 12px; }
+    .dashboard-shell .bottom-nav ion-icon { font-size: 25px; }
+    .dashboard-shell .bottom-nav a.active { color: #f21d2f; background: transparent; }
     @media(max-width: 430px) { .network-pill { width: 38px; padding: 0; justify-content: center; } .network-pill-label { display: none; } }
   `]
 })
@@ -90,6 +99,11 @@ export class MobileShellComponent {
   @Input() backRoute = '';
   @Input() showNav = false;
   @Input() showNetwork = true;
+  @Input() networkIconOnly = false;
+  @Input() hideHeader = false;
+  @Input() dashboardStyle = false;
   readonly connectivity = inject(ConnectivityService);
   readonly theme = inject(ThemeService);
+  readonly notifications = inject(DriverNotificationService);
+  get badgeLabel(): string { return this.notifications.unreadCount() > 99 ? '99+' : String(this.notifications.unreadCount()); }
 }

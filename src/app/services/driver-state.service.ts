@@ -62,7 +62,10 @@ export class DriverStateService {
 
   async clockIn(note?: string, latitude?: number, longitude?: number): Promise<boolean> {
     const shiftId = crypto.randomUUID();
-    return this.send('shift.clock_in', { vehicleId: this.selectedVehicleId(), note, latitude, longitude }, shiftId);
+    // A new shift always begins without carrying a vehicle choice from an older session.
+    // Vehicle selection is confirmed explicitly against the logged-in driver's assignments.
+    this.selectedVehicleId.set(null);
+    return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude }, shiftId);
   }
 
   async clockOut(): Promise<boolean> {
@@ -98,6 +101,7 @@ export class DriverStateService {
   }
 
   async submitInspection(
+    jobId: string,
     vehicleId: string,
     checklist: Record<string, boolean>,
     notes?: string,
@@ -109,7 +113,7 @@ export class DriverStateService {
       checklist,
       notes,
       photoUrls,
-    }, crypto.randomUUID());
+    }, jobId);
   }
 
   async updateJob(jobId: string, action: 'started' | 'arrived' | 'equipment_verified' | 'fueled' | 'proof_submitted', payload: Record<string, unknown> = {}): Promise<boolean> {
@@ -185,11 +189,16 @@ export class DriverStateService {
     return await firstValueFrom(this.api.uploadFile(file));
   }
 
+  async deleteEvidence(url: string): Promise<void> {
+    if (url) await firstValueFrom(this.api.deleteUploadedFile(url));
+  }
+
   async reportIncident(payload: {
     jobId?: string;
     incidentType: string;
     severity: string;
     description: string;
+    supervisorContacted: boolean;
     latitude?: number;
     longitude?: number;
     evidenceUrls?: string[];

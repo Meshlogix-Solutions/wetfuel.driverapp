@@ -45,5 +45,5 @@ export class ClockInPage {
       {enableHighAccuracy:true,timeout:10000,maximumAge:30000},
     );
   }
-  private async finishClockIn():Promise<void>{if(await this.state.clockIn(undefined,this.latitude,this.longitude))void this.router.navigateByUrl('/vehicle');}
+  private async finishClockIn():Promise<void>{if(await this.state.clockIn(undefined,this.latitude,this.longitude))void this.router.navigateByUrl('/dashboard');}
 }

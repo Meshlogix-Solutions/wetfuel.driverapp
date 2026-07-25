@@ -15,6 +15,7 @@ interface AuthTokenResponse {
 const ACCESS_TOKEN_KEY = 'driver_access_token';
 const REFRESH_TOKEN_KEY = 'driver_refresh_token';
 const EXPIRES_AT_KEY = 'driver_token_expires_at';
+const USER_ID_KEY = 'driver_user_id';
 
 @Injectable({ providedIn: 'root' })
 export class DriverAuthService {
@@ -37,6 +38,10 @@ export class DriverAuthService {
   async hasValidSession(): Promise<boolean> {
     if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return false;
     return this.isExpiringSoon() ? this.refreshToken() : true;
+  }
+
+  getCurrentUserId(): string | null {
+    return localStorage.getItem(USER_ID_KEY);
   }
 
   refreshToken(): Promise<boolean> {
@@ -91,11 +96,13 @@ export class DriverAuthService {
     localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
     localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + data.expiresIn * 1000));
+    localStorage.setItem(USER_ID_KEY, data.user.id);
   }
 
   private clearTokens(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(EXPIRES_AT_KEY);
+    localStorage.removeItem(USER_ID_KEY);
   }
 }

@@ -35,7 +35,7 @@ import { DriverAuthService } from '../services/driver-auth.service';
     </ion-card>
 
     <ion-list inset="true">
-      <ion-item button routerLink="/vehicle"><ion-icon name="truck-outline" slot="start"></ion-icon><ion-label><h3>Assigned vehicle</h3><p>{{ vehicleLabel() }}</p></ion-label></ion-item>
+      <ion-item button routerLink="/active-shift"><ion-icon name="truck-outline" slot="start"></ion-icon><ion-label><h3>Assigned vehicles</h3><p>{{ vehicleLabel() }}</p></ion-label></ion-item>
       <ion-item button><ion-icon name="notifications-outline" slot="start"></ion-icon><ion-label>Notification preferences</ion-label></ion-item>
       <ion-item button><ion-icon name="help-circle-outline" slot="start"></ion-icon><ion-label>Help and support</ion-label></ion-item>
     </ion-list>
@@ -65,7 +65,10 @@ export class ProfilePage {
   vehicleLabel(): string {
     const shiftVehicle = this.activeShift()?.vehicle;
     if (shiftVehicle) return [shiftVehicle.name, shiftVehicle.make, shiftVehicle.model].filter(Boolean).join(' · ');
-    return this.profile()?.assignedVehicleName ?? 'No vehicle selected';
+    const assigned = this.profile()?.assignedVehicles ?? [];
+    if (assigned.length === 1) return assigned[0].name;
+    if (assigned.length > 1) return `${assigned.length} vehicles available`;
+    return 'No vehicle assigned';
   }
   logout(): void { void this.auth.logout(); }
 }

@@ -27,7 +27,7 @@ import { Router } from '@angular/router';
       <ion-range min="0" [max]="targetGallons" [(ngModel)]="gallons" [pin]="true"></ion-range>
     </div>
     <ion-button class="wf-button wf-secondary" expand="block" [disabled]="!canStop" (click)="stopAndRecord()">Stop and record delivery</ion-button>
-    <ion-button class="wf-button" color="danger" fill="outline" expand="block" routerLink="/incident">Emergency stop / report spill</ion-button>
+    <ion-button class="wf-button" color="danger" fill="outline" expand="block" routerLink="/incident" [queryParams]="{jobId: state.selectedJob()?.id}">Emergency stop / report spill</ion-button>
   </main>
 </wf-mobile-shell>
   `

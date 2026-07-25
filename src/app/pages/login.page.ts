@@ -41,10 +41,15 @@ export class LoginPage {
     private readonly toast: ToastService,
   ) {}
 
+  ionViewWillEnter(): void {
+    this.loading = false;
+  }
+
   async login(): Promise<void> {
     this.loading = true;
     try {
       await this.auth.login(this.identity, this.password);
+      this.loading = false;
       await this.router.navigateByUrl('/dashboard');
     } catch (err: unknown) {
       const failure = err as { error?: { message?: string }; message?: string };
