@@ -25,13 +25,25 @@ import { DriverStateService } from '../services/driver-state.service';
         <ion-icon [name]="selected === vehicle.id ? 'checkmark-circle-outline' : 'chevron-forward-outline'"></ion-icon>
       </ion-card-content>
     </ion-card>
-    <ion-card class="wf-card warning-card">
+    <ion-card *ngIf="!loading() && vehicles().length === 0" class="wf-card warning-card">
+      <ion-card-content>
+        <strong>No vehicle assigned</strong>
+        <p class="caption" style="margin:4px 0 0">Ask your dispatcher to assign an active vehicle to your driver account.</p>
+      </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="loadError()" class="wf-card warning-card">
+      <ion-card-content>
+        <strong>Vehicles could not be loaded</strong>
+        <p class="caption" style="margin:4px 0 0">{{ loadError() }}</p>
+      </ion-card-content>
+    </ion-card>
+    <ion-card *ngIf="vehicles().length > 0" class="wf-card warning-card">
       <ion-card-content class="row">
         <div class="icon-tile"><ion-icon name="shield-checkmark-outline"></ion-icon></div>
         <div><strong>Compliance verified</strong><p class="caption" style="margin:4px 0 0">Registration, insurance and inspection are current.</p></div>
       </ion-card-content>
     </ion-card>
-    <ion-button class="wf-button" expand="block" (click)="confirm()">Confirm vehicle</ion-button>
+    <ion-button class="wf-button" expand="block" [disabled]="loading() || !selected" (click)="confirm()">Confirm vehicle</ion-button>
   </main>
 </wf-mobile-shell>
   `
@@ -42,13 +54,26 @@ export class VehiclePage {
   private readonly router = inject(Router);
 
   readonly vehicles = signal<DriverVehicle[]>([]);
+  readonly loading = signal(true);
+  readonly loadError = signal('');
   selected = this.state.selectedVehicleId() ?? '';
 
   ionViewWillEnter(): void {
+    this.loading.set(true);
+    this.loadError.set('');
     this.api.getVehicles().subscribe({
       next: vehicles => {
         this.vehicles.set(vehicles);
-        if (!this.selected) this.selected = vehicles[0]?.id ?? '';
+        if (!vehicles.some(vehicle => vehicle.id === this.selected)) {
+          this.selected = vehicles[0]?.id ?? '';
+        }
+        this.loading.set(false);
+      },
+      error: error => {
+        this.vehicles.set([]);
+        this.selected = '';
+        this.loadError.set(error?.error?.message ?? 'Check your connection and try again.');
+        this.loading.set(false);
       },
     });
   }
