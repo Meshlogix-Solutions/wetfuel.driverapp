@@ -1,0 +1,18 @@
+diff --git a/node_modules/@capacitor-mlkit/barcode-scanning/android/src/main/java/io/capawesome/capacitorjs/plugins/mlkit/barcodescanning/BarcodeScanner.java b/node_modules/@capacitor-mlkit/barcode-scanning/android/src/main/java/io/capawesome/capacitorjs/plugins/mlkit/barcodescanning/BarcodeScanner.java
+index 6ccdc25..63f8d27 100644
+--- a/node_modules/@capacitor-mlkit/barcode-scanning/android/src/main/java/io/capawesome/capacitorjs/plugins/mlkit/barcodescanning/BarcodeScanner.java
++++ b/node_modules/@capacitor-mlkit/barcode-scanning/android/src/main/java/io/capawesome/capacitorjs/plugins/mlkit/barcodescanning/BarcodeScanner.java
+@@ -135,6 +135,13 @@ public class BarcodeScanner implements ImageAnalysis.Analyzer {
+                     );
+                     previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
+                     previewView.setBackgroundColor(Color.BLACK);
++                    // PERFORMANCE (the default) backs this with a SurfaceView, which relies on
++                    // Android's "hole-punch" compositing to show through the transparent WebView
++                    // above it. That compositing path is broken on some OEM Android skins (e.g.
++                    // OxygenOS/ColorOS), leaving the preview surface fed with real camera frames
++                    // but never actually visible on screen. COMPATIBLE uses a TextureView instead,
++                    // which composites as a normal view layer and sidesteps that OEM-specific bug.
++                    previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
+ 
+                     // Add preview view behind the WebView
+                     ((ViewGroup) plugin.getBridge().getWebView().getParent()).addView(previewView, 0);

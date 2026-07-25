@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, IonButton } from '@ionic/angular/standalone';
 import { DriverAuthService } from '../services/driver-auth.service';
+import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-login',
@@ -22,7 +23,6 @@ import { DriverAuthService } from '../services/driver-auth.service';
           <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
           <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
-          @if (error) { <p style="color:var(--ion-color-danger)">{{ error }}</p> }
           <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Signing in...' : 'Sign in securely' }}</ion-button>
          </ion-card-content>
       </ion-card>
@@ -35,21 +35,20 @@ export class LoginPage {
   identity = 'driver@wetfuel.com';
   password = '';
   loading = false;
-  error = '';
   constructor(
     private readonly auth: DriverAuthService,
     private readonly router: Router,
+    private readonly toast: ToastService,
   ) {}
 
   async login(): Promise<void> {
     this.loading = true;
-    this.error = '';
     try {
       await this.auth.login(this.identity, this.password);
       await this.router.navigateByUrl('/dashboard');
     } catch (err: unknown) {
       const failure = err as { error?: { message?: string }; message?: string };
-      this.error = failure.error?.message ?? failure.message ?? 'Invalid email or password.';
+      void this.toast.error(failure.error?.message ?? failure.message ?? 'Invalid email or password.');
     } finally {
       this.loading = false;
     }

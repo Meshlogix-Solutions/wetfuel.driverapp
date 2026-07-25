@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
+import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-delivery-summary',
@@ -36,15 +37,17 @@ import { DriverStateService } from '../services/driver-state.service';
       </ion-card-content>
     </ion-card>
     <ion-card class="wf-card warning-card"><ion-card-content><strong>Internet connection required</strong><p class="caption" style="margin:6px 0 0">This delivery is submitted directly to the server — an internet connection is needed to complete it.</p></ion-card-content></ion-card>
-    @if (submitError) { <p style="color:var(--ion-color-danger)">{{ submitError }}</p> }
     <ion-button class="wf-button" color="tertiary" expand="block" (click)="complete()">Complete job and sync</ion-button>
   </main>
 </wf-mobile-shell>
   `
 })
 export class DeliverySummaryPage {
-  submitError = '';
-  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  constructor(
+    readonly state: DriverStateService,
+    private readonly router: Router,
+    private readonly toast: ToastService,
+  ) {}
   async complete(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
@@ -54,18 +57,17 @@ export class DeliverySummaryPage {
     // may have skipped past on resume (see job_details.page.ts's proof_submitted shortcut).
     const deliveredGallons = this.state.deliveredGallons();
     if (!deliveredGallons) {
-      this.submitError = 'Delivered volume was not captured. Go back to fueling and re-enter it.';
+      void this.toast.error('Delivered volume was not captured. Go back to fueling and re-enter it.');
       return;
     }
     const draft = this.state.deliveryDraft();
     if (draft.startingTotalizer != null && draft.endingTotalizer != null) {
       const metered = draft.endingTotalizer - draft.startingTotalizer;
       if (draft.endingTotalizer < draft.startingTotalizer || Math.abs(metered - deliveredGallons) > 0.1) {
-        this.submitError = `Delivered volume (${deliveredGallons} gal) doesn't match the meter totalizer difference (${metered} gal). Go back and correct the totalizers or delivered volume.`;
+        void this.toast.error(`Delivered volume (${deliveredGallons} gal) doesn't match the meter totalizer difference (${metered} gal). Go back and correct the totalizers or delivered volume.`);
         return;
       }
     }
-    this.submitError = '';
     const ok = await this.state.completeDelivery(job.id, deliveredGallons, {
       startingTotalizer: draft.startingTotalizer,
       endingTotalizer: draft.endingTotalizer,
@@ -78,7 +80,7 @@ export class DeliverySummaryPage {
       },
     });
     if (!ok) {
-      this.submitError = this.state.syncError() || 'The delivery could not be completed.';
+      void this.toast.error(this.state.syncError() || 'The delivery could not be completed.');
       return;
     }
     void this.router.navigateByUrl('/jobs');

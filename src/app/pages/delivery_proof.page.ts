@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonCheckbox, IonInput, IonItem, IonLabel, IonTextarea } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-delivery-proof',
@@ -25,7 +26,6 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
               <input hidden type="file" accept="image/*" capture="environment" (change)="uploadPhoto('equipment',$event)">
             </label>
           </div>
-          @if (uploadError) { <p style="color:var(--ion-color-danger)">{{ uploadError }}</p> }
         </section>
         <ion-card class="wf-card"><ion-card-content class="stack">
           <h2 class="section-title">Meter readings</h2>
@@ -55,12 +55,12 @@ export class DeliveryProofPage implements OnInit {
   safe = false;
   notified = false;
   uploading: '' | 'meter' | 'equipment' = '';
-  uploadError = '';
 
   constructor(
     readonly state: DriverStateService,
     private readonly router: Router,
     private readonly cdr: ChangeDetectorRef,
+    private readonly toast: ToastService,
   ) {}
   ngOnInit(): void {
     const draft = this.state.deliveryDraft();
@@ -83,7 +83,6 @@ export class DeliveryProofPage implements OnInit {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.uploading = kind;
-    this.uploadError = '';
     try {
       const url = await this.state.uploadEvidence(file);
       if (kind === 'meter') this.meterPhotoUrl = url;
@@ -91,7 +90,7 @@ export class DeliveryProofPage implements OnInit {
       this.saveDraft();
     } catch (error: unknown) {
       const failure = error as { error?: { message?: string }; message?: string };
-      this.uploadError = failure.error?.message ?? failure.message ?? 'The photo could not be uploaded.';
+      void this.toast.error(failure.error?.message ?? failure.message ?? 'The photo could not be uploaded.');
     } finally {
       this.uploading = '';
       // The upload can settle while the tab is backgrounded (e.g. returning from the native
