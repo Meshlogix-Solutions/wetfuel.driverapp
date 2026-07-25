@@ -145,3 +145,16 @@ ion-button.wf-secondary { --background: var(--wf-primary-soft); --color: var(--w
   .grid-2 { grid-template-columns: 1fr 1fr; }
   .screen-body { padding-left: 14px; padding-right: 14px; }
 }
+
+// @capacitor-mlkit/barcode-scanning requires the WebView background to go transparent while
+// scanning so the native camera preview underneath is visible - everything except the
+// scanner's own overlay hides while body.barcode-scanner-active is set.
+body.barcode-scanner-active {
+  visibility: hidden;
+  --background: transparent;
+  --ion-background-color: transparent;
+  background: transparent;
+}
+.barcode-scanner-modal {
+  visibility: visible;
+}

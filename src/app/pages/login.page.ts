@@ -22,7 +22,8 @@ import { DriverAuthService } from '../services/driver-auth.service';
           <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
           <p class="caption" style="margin:0">You will enter your password on the secure WetFuel sign-in page.</p>
           <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
-          <ion-button class="wf-button" expand="block" (click)="login()">Sign in securely</ion-button>
+          @if (error) { <p style="color:var(--ion-color-danger)">{{ error }}</p> }
+          <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Opening sign-in...' : 'Sign in securely' }}</ion-button>
          </ion-card-content>
       </ion-card>
     </div>
@@ -32,6 +33,20 @@ import { DriverAuthService } from '../services/driver-auth.service';
 })
 export class LoginPage {
   identity = 'driver@wetfuel.com';
+  loading = false;
+  error = '';
   constructor(private readonly auth: DriverAuthService) {}
-  login(): void { void this.auth.login(this.identity); }
+
+  async login(): Promise<void> {
+    this.loading = true;
+    this.error = '';
+    try {
+      await this.auth.login(this.identity);
+    } catch (err: unknown) {
+      const failure = err as { message?: string; error_description?: string };
+      this.error = failure.error_description ?? failure.message ?? String(err);
+    } finally {
+      this.loading = false;
+    }
+  }
 }
