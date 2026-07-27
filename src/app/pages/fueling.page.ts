@@ -49,7 +49,7 @@ export class FuelingPage {
   async stopAndRecord(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
-    if (!(await this.state.updateJob(job.id, 'fueled'))) return;
+    if (!(await this.state.updateJob(job.id, 'fueled', { deliveredGallons: Number(this.gallons) }))) return;
     this.fueling = false;
     this.state.setDeliveryVolume(Number(this.gallons));
     void this.router.navigate(['/jobs', job.id, 'delivery-proof']);

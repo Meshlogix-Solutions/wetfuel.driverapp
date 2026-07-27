@@ -43,6 +43,7 @@ export interface DriverJob {
   siteAddress: string;
   scheduledAt: string;
   targetGallons: number;
+  fueledGallons?: number;
   fuelType: string;
   distanceMiles?: number;
   status: string;

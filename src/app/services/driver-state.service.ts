@@ -53,6 +53,11 @@ export class DriverStateService {
       const job = await firstValueFrom(this.api.getJob(jobId));
       this.selectedJob.set(job);
       this.restoreDraft(jobId);
+      // deliveredGallons is otherwise local-only until the delivery is fully completed - if this
+      // device/session never captured it (new install, cleared storage, a different device),
+      // fall back to what the server persisted when the driver recorded fueling instead of
+      // showing 0 with no way to recover it (see fueling.page.ts's job.fueled event).
+      if (!this.deliveredGallons() && job.fueledGallons) this.deliveredGallons.set(job.fueledGallons);
       return job;
     } catch {
       this.selectedJob.set(null);
