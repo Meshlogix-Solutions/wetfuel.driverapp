@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { IonButton, IonCard, IonCardContent, IonCheckbox, IonInput, IonItem, IonLabel, IonTextarea } from '@ionic/angular/standalone';
+import { IonButton, IonButtons, IonCard, IonCardContent, IonCheckbox, IonContent, IonHeader, IonInput, IonItem, IonLabel, IonModal, IonTitle, IonToolbar, IonTextarea } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { ToastService } from '../services/toast.service';
@@ -9,7 +9,7 @@ import { ToastService } from '../services/toast.service';
 @Component({
   selector: 'app-delivery-proof',
   standalone: true,
-  imports: [FormsModule, MobileShellComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton],
+  imports: [FormsModule, MobileShellComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton, IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonContent],
   template: `
     <wf-mobile-shell title="Delivery proof" [subtitle]="state.deliveredGallons() + ' gallons captured'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/fueling'">
       <main class="screen-body stack">
@@ -19,7 +19,10 @@ import { ToastService } from '../services/toast.service';
           <div class="photo-grid">
             <div class="proof-photo-card">
               @if (meterPhotoUrl) {
-                <img class="photo-preview" [src]="meterPhotoUrl" alt="Uploaded meter reading photo preview">
+                <button type="button" class="preview-trigger" (click)="openPreview(meterPhotoUrl, 'Meter photo')" aria-label="Open meter photo preview">
+                  <img class="photo-preview" [src]="meterPhotoUrl" alt="Uploaded meter reading photo preview">
+                  <span>Tap to enlarge</span>
+                </button>
                 <div class="photo-caption"><strong>Meter photo</strong><span>Check that the reading is clear.</span></div>
                 <div class="photo-actions">
                   <label class="retake-action">Retake<input hidden type="file" accept="image/*" capture="environment" [disabled]="!!uploading" (change)="uploadPhoto('meter',$event)"></label>
@@ -34,7 +37,10 @@ import { ToastService } from '../services/toast.service';
             </div>
             <div class="proof-photo-card">
               @if (equipmentPhotoUrl) {
-                <img class="photo-preview" [src]="equipmentPhotoUrl" alt="Uploaded equipment photo preview">
+                <button type="button" class="preview-trigger" (click)="openPreview(equipmentPhotoUrl, 'Equipment photo')" aria-label="Open equipment photo preview">
+                  <img class="photo-preview" [src]="equipmentPhotoUrl" alt="Uploaded equipment photo preview">
+                  <span>Tap to enlarge</span>
+                </button>
                 <div class="photo-caption"><strong>Equipment photo</strong><span>Check that the equipment is in focus.</span></div>
                 <div class="photo-actions">
                   <label class="retake-action">Retake<input hidden type="file" accept="image/*" capture="environment" [disabled]="!!uploading" (change)="uploadPhoto('equipment',$event)"></label>
@@ -66,6 +72,24 @@ import { ToastService } from '../services/toast.service';
         <ion-item><ion-textarea label="Driver notes" labelPlacement="stacked" [(ngModel)]="notes" placeholder="Delivery completed without issue..."></ion-textarea></ion-item>
         <ion-button class="wf-button" expand="block" [disabled]="!canReview" (click)="review()">Review delivery summary</ion-button>
       </main>
+      <ion-modal [isOpen]="!!previewPhotoUrl" (didDismiss)="closePreview()">
+        <ng-template>
+          <ion-header>
+            <ion-toolbar>
+              <ion-title>{{ previewPhotoTitle }}</ion-title>
+              <ion-buttons slot="end">
+                <ion-button (click)="closePreview()" aria-label="Close photo preview">Close</ion-button>
+              </ion-buttons>
+            </ion-toolbar>
+          </ion-header>
+          <ion-content class="preview-modal-content">
+            <div class="preview-modal-body">
+              <img [src]="previewPhotoUrl" [alt]="previewPhotoTitle + ' enlarged preview'">
+              <p>Check that the photo is clear, readable, and not blurry.</p>
+            </div>
+          </ion-content>
+        </ng-template>
+      </ion-modal>
     </wf-mobile-shell>
   `,
   styles: [`
@@ -73,7 +97,9 @@ import { ToastService } from '../services/toast.service';
     .proof-photo-card { min-width: 0; border: 1px solid var(--wf-border); border-radius: 16px; background: var(--wf-surface); overflow: hidden; }
     .proof-photo-card .photo-box { min-height: 190px; border: 0; border-radius: 0; cursor: pointer; align-content: center; gap: 7px; }
     .camera-mark { font-size: 24px; }
+    .preview-trigger { position: relative; display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
     .photo-preview { display: block; width: 100%; height: 180px; object-fit: cover; background: var(--wf-accent-surface); }
+    .preview-trigger > span { position: absolute; right: 9px; bottom: 9px; padding: 5px 8px; border-radius: 8px; color: #fff; background: rgba(0, 0, 0, .68); font-size: 11px; font-weight: 800; }
     .photo-caption { display: grid; gap: 3px; padding: 11px 12px 5px; }
     .photo-caption span, .preview-help { color: var(--wf-muted); font-size: 12px; }
     .photo-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 12px 12px; }
@@ -82,6 +108,10 @@ import { ToastService } from '../services/toast.service';
     .remove-action { color: var(--ion-color-danger); background: transparent; border: 1px solid var(--wf-border); }
     .retake-action:has(input:disabled), .remove-action:disabled { opacity: .5; cursor: default; }
     .preview-help { margin: 10px 2px 0; line-height: 1.45; }
+    .preview-modal-content { --background: #111; }
+    .preview-modal-body { min-height: 100%; display: grid; grid-template-rows: 1fr auto; align-items: center; gap: 16px; padding: 20px; }
+    .preview-modal-body img { display: block; width: 100%; max-height: calc(100vh - 180px); object-fit: contain; }
+    .preview-modal-body p { margin: 0; color: #fff; text-align: center; font-size: 14px; }
     @media(max-width: 390px) { .photo-grid { grid-template-columns: 1fr; } .photo-preview { height: 210px; } }
   `],
 })
@@ -91,6 +121,8 @@ export class DeliveryProofPage implements OnInit {
   endingTotalizer?: number;
   meterPhotoUrl = '';
   equipmentPhotoUrl = '';
+  previewPhotoUrl = '';
+  previewPhotoTitle = '';
   safe = false;
   notified = false;
   uploading: '' | 'meter' | 'equipment' = '';
@@ -146,6 +178,14 @@ export class DeliveryProofPage implements OnInit {
     if (kind === 'meter') this.meterPhotoUrl = ''; else this.equipmentPhotoUrl = '';
     if (previous) void this.state.deleteEvidence(previous);
     this.saveDraft();
+  }
+  openPreview(url: string, title: string): void {
+    this.previewPhotoUrl = url;
+    this.previewPhotoTitle = title;
+  }
+  closePreview(): void {
+    this.previewPhotoUrl = '';
+    this.previewPhotoTitle = '';
   }
   async review(): Promise<void> {
     const job = this.state.selectedJob();

@@ -14,7 +14,7 @@ import { firstValueFrom } from 'rxjs';
 import { DriverNotificationService } from '../services/driver-notification.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
-import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { MobileShellComponent, RefreshRequest } from '../shared/mobile-shell.component';
 import { LoaderComponent } from '../shared/loader.component';
 
 @Component({
@@ -26,6 +26,8 @@ import { LoaderComponent } from '../shared/loader.component';
   [title]="greeting + ', ' + (profile()?.firstName || 'Driver')"
   subtitle="Driver dashboard"
   [showNav]="true"
+  [refreshable]="true"
+  (refreshRequested)="refreshDashboard($event)"
   [networkIconOnly]="true">
   <main class="driver-dashboard">
     <header class="dashboard-header" hidden>
@@ -48,8 +50,28 @@ import { LoaderComponent } from '../shared/loader.component';
         <section class="dashboard-error"><span>{{ dashboardError() }}</span><button type="button" (click)="loadDashboard()">Retry</button></section>
       }
 
+    <section class="status-strip duo" aria-label="Job and shift status">
+      <div class="status-segment" [class.active]="!!activeJob()">
+        <ion-icon name="briefcase-outline"></ion-icon>
+        <span class="live-dot"></span>
+        <span>{{ jobStatusLabel }}</span>
+      </div>
+      <div class="status-segment" [class.active]="isShiftActive" [class.break]="isShiftPaused">
+        <ion-icon name="time-outline"></ion-icon>
+        <span class="live-dot"></span>
+        <span>{{ shiftStatusLabel }}</span>
+      </div>
+    </section>
+
     <section class="panel active-shift-panel" [class.inactive]="!activeShift()">
-      <div class="shift-details">
+      <div
+        class="shift-details"
+        [class.interactive]="!!activeShift()"
+        [attr.role]="activeShift() ? 'button' : null"
+        [attr.tabindex]="activeShift() ? 0 : null"
+        (click)="activeShift() && handleShiftAction()"
+        (keydown.enter)="activeShift() && handleShiftAction()"
+        (keydown.space)="$event.preventDefault(); activeShift() && handleShiftAction()">
         <div class="shift-orb"><ion-icon name="truck-outline"></ion-icon></div>
         <div class="shift-detail">
           <span>{{ activeShift() ? 'On duty since' : 'Current status' }}</span>
@@ -62,6 +84,19 @@ import { LoaderComponent } from '../shared/loader.component';
         </div>
         <ion-icon class="panel-chevron" name="chevron-forward-outline"></ion-icon>
       </div>
+      @if (activeShift()?.vehicle; as vehicle) {
+        <div class="vehicle-inventory" aria-label="Fuel remaining in selected vehicle">
+          <div class="vehicle-inventory-heading">
+            <span><ion-icon name="water-outline"></ion-icon> Fuel remaining in truck</span>
+            <strong>{{ vehicle.inventoryGallons | number:'1.0-0' }} / {{ vehicle.capacityGallons | number:'1.0-0' }} gal</strong>
+          </div>
+          <div class="vehicle-inventory-track" role="progressbar" aria-label="Truck fuel remaining"
+            aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="vehicleInventoryPercent">
+            <span [style.width.%]="vehicleInventoryPercent"></span>
+          </div>
+          <small>{{ vehicleInventoryPercent }}% onboard</small>
+        </div>
+      }
       <button class="primary-dashboard-button" type="button" [disabled]="dashboardLoading() || state.busy()" (click)="handleShiftAction()">
         {{ shiftActionLabel }}
       </button>
@@ -74,6 +109,18 @@ import { LoaderComponent } from '../shared/loader.component';
         <strong>{{ summary().deliveredGallons | number:'1.0-0' }} <small>/ {{ summary().plannedGallons | number:'1.0-0' }} gal</small></strong>
         <div class="progress-track"><span [style.width.%]="deliveryProgress"></span></div>
         <p><b>{{ remainingGallons | number:'1.0-0' }} gal</b> remaining</p>
+      </article>
+      <article class="metric-panel" [class.shortfall]="fuelShortfall > 0">
+        <div class="metric-icon"><ion-icon name="flame-outline"></ion-icon></div>
+        <span>Required fuel</span>
+        <strong>{{ remainingGallons | number:'1.0-0' }} <small>gal</small></strong>
+        @if (activeShift()?.vehicle; as vehicle) {
+          <p><b>{{ vehicle.inventoryGallons | number:'1.0-0' }} gal</b> in truck
+            @if (fuelShortfall > 0) { &middot; short {{ fuelShortfall | number:'1.0-0' }} gal }
+          </p>
+        } @else {
+          <p>Select a vehicle to compare truck inventory</p>
+        }
       </article>
       <article class="metric-panel">
         <div class="metric-icon"><ion-icon name="briefcase-outline"></ion-icon></div>
@@ -139,6 +186,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .round-action ion-icon { font-size: 23px; }
     .notification-count { position: absolute; top: -4px; right: -2px; min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; border: 2px solid #090a0e; border-radius: 999px; background: #f21d2f; color: #fff; font-size: 10px; font-weight: 850; }
     .status-strip { min-height: 58px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; overflow: hidden; border: 1px solid #30323a; border-radius: 16px; background: linear-gradient(180deg,#17181e,#111217); box-shadow: inset 0 1px rgba(255,255,255,.025); }
+    .status-strip.duo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .status-segment { min-width: 0; min-height: 30px; padding: 0 13px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #d7d7db; font-size: 12px; border-right: 1px solid #30323a; }
     .status-segment:last-child { border-right: 0; }
     .status-segment strong { color: #a6a7ad; white-space: nowrap; }
@@ -157,6 +205,8 @@ import { LoaderComponent } from '../shared/loader.component';
     .active-shift-panel.inactive .vehicle-detail { display: none; }
     .active-shift-panel.inactive .panel-chevron { display: none; }
     .shift-details { display: grid; grid-template-columns: 58px 1fr 1fr 18px; align-items: center; gap: 13px; margin-bottom: 16px; }
+    .shift-details.interactive { cursor: pointer; border-radius: 14px; outline: none; }
+    .shift-details.interactive:focus-visible { box-shadow: 0 0 0 3px var(--wf-primary-soft); }
     .shift-orb { width: 58px; height: 58px; display: grid; place-items: center; border-radius: 50%; background: #ef182b; color: #fff; }
     .shift-orb ion-icon { font-size: 29px; }
     .shift-detail { min-width: 0; padding-right: 10px; }
@@ -165,6 +215,14 @@ import { LoaderComponent } from '../shared/loader.component';
     .shift-detail small { display: block; max-width: 360px; margin-top: 5px; color: var(--wf-muted); font-size: 11px; line-height: 1.4; }
     .vehicle-detail { padding-left: 14px; border-left: 1px solid #32343b; }
     .panel-chevron { color: #f4f4f5; font-size: 24px; }
+    .vehicle-inventory { margin: -2px 0 16px; padding: 12px 13px; border: 1px solid var(--wf-border); border-radius: 14px; background: var(--wf-accent-surface); }
+    .vehicle-inventory-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .vehicle-inventory-heading span { display: inline-flex; align-items: center; gap: 6px; color: var(--wf-muted); font-size: 11px; font-weight: 750; }
+    .vehicle-inventory-heading ion-icon { color: var(--wf-primary); font-size: 16px; }
+    .vehicle-inventory-heading strong { color: var(--wf-text); font-size: 12px; white-space: nowrap; }
+    .vehicle-inventory-track { height: 7px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: var(--wf-border); }
+    .vehicle-inventory-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--wf-primary), var(--wf-accent)); }
+    .vehicle-inventory small { display: block; margin-top: 6px; color: var(--wf-muted); font-size: 10px; text-align: right; }
     .primary-dashboard-button, .outline-dashboard-button { width: 100%; min-height: 50px; border-radius: 11px; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
     .primary-dashboard-button { border: 0; background: linear-gradient(180deg,#f51d31,#e80e23); box-shadow: 0 9px 22px rgba(238,20,40,.18); }
     .primary-dashboard-button:disabled { opacity: .55; }
@@ -180,6 +238,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .metric-panel .progress-track { width: 100%; height: 8px; margin: 1px 0 10px; overflow: hidden; border-radius: 99px; background: #292b31; }
     .metric-panel .progress-track span { display: block; height: 100%; border-radius: inherit; background: #f21d2f; }
     .metric-panel .complete-pill { padding: 7px 9px; border-radius: 999px; background: rgba(42,210,77,.08); color: #42dc61; font-weight: 750; }
+    .metric-panel.shortfall p b { color: #ffb347; }
     .delivery-panel { padding: 17px; }
     .delivery-panel.clickable { cursor: pointer; }
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
@@ -317,6 +376,14 @@ export class DashboardPage implements OnDestroy {
     }
   }
 
+  async refreshDashboard(request: RefreshRequest): Promise<void> {
+    try {
+      await Promise.all([this.loadDashboard(), this.notifications.refresh()]);
+    } finally {
+      request.complete();
+    }
+  }
+
   private applyDashboardJobs(value: DriverDashboardJobs): void {
     this.jobs.set([value.activeJob, value.nextJob].filter((job): job is DriverJob => !!job));
     this.nextJobSequence.set(value.nextJobSequence);
@@ -331,14 +398,33 @@ export class DashboardPage implements OnDestroy {
     return vehicle?.licensePlate || vehicle?.unitNumber || 'Not selected';
   }
 
+  get vehicleInventoryPercent(): number {
+    const vehicle = this.activeShift()?.vehicle;
+    if (!vehicle || Number(vehicle.capacityGallons) <= 0) return 0;
+    return Math.min(100, Math.max(0,
+      Math.round(Number(vehicle.inventoryGallons) / Number(vehicle.capacityGallons) * 100)));
+  }
+
   get greeting(): string {
     const hour = new Date(this.now()).getHours();
     return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   }
 
+  get isShiftPaused(): boolean {
+    return this.activeShift()?.status === 'on_break';
+  }
+
+  get isShiftActive(): boolean {
+    return !!this.activeShift() && !this.isShiftPaused;
+  }
+
+  get jobStatusLabel(): string {
+    return this.activeJob() ? 'Job Started' : 'Job Not Started';
+  }
+
   get shiftStatusLabel(): string {
-    if (!this.activeShift()) return 'Shift inactive';
-    return this.activeShift()?.status === 'on_break' ? 'On break' : 'Shift active';
+    if (!this.activeShift()) return 'Shift Not Started';
+    return this.isShiftPaused ? 'Shift Paused' : 'Shift Active';
   }
 
   get displayedJobSequence(): number {
@@ -368,6 +454,12 @@ export class DashboardPage implements OnDestroy {
 
   get remainingGallons(): number {
     return Math.max(0, Number(this.summary().plannedGallons) - Number(this.summary().deliveredGallons));
+  }
+
+  get fuelShortfall(): number {
+    const vehicle = this.activeShift()?.vehicle;
+    if (!vehicle) return 0;
+    return Math.max(0, this.remainingGallons - Number(vehicle.inventoryGallons));
   }
 
   async handleShiftAction(): Promise<void> {

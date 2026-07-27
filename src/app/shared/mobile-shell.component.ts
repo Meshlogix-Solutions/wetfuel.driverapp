@@ -1,17 +1,22 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { IonContent, IonIcon } from '@ionic/angular/standalone';
+import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { ConnectivityService } from '../services/connectivity.service';
 import { ThemeService } from '../services/theme.service';
 import { DriverNotificationService } from '../services/driver-notification.service';
 
+export interface RefreshRequest { complete: () => void; }
+
 @Component({
   selector: 'wf-mobile-shell',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, IonContent, IonIcon],
+  imports: [CommonModule, RouterLink, RouterLinkActive, IonContent, IonIcon, IonRefresher, IonRefresherContent],
   template: `
     <ion-content [fullscreen]="true">
+      <ion-refresher *ngIf="refreshable" slot="fixed" (ionRefresh)="requestPullRefresh($event)">
+        <ion-refresher-content pullingText="Pull to refresh" refreshingText="Refreshing..."></ion-refresher-content>
+      </ion-refresher>
       <div class="app-frame" [class.dashboard-shell]="dashboardStyle" [style.--wf-screen-bottom-padding]="showNav ? '110px' : '28px'">
         <header class="topbar" *ngIf="!hideHeader">
           <div class="topbar-left">
@@ -24,6 +29,9 @@ import { DriverNotificationService } from '../services/driver-notification.servi
             </div>
           </div>
           <div class="topbar-actions">
+            <button *ngIf="refreshable" type="button" class="top-icon refresh-action" [class.refreshing]="refreshing()" [disabled]="refreshing()" (click)="requestHeaderRefresh()" aria-label="Refresh page">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.3"/><path d="M20 4v7h-7"/></svg>
+            </button>
             <button *ngIf="showNetwork" class="network-pill" [class.icon-only]="networkIconOnly" [class.offline]="!connectivity.online()" (click)="connectivity.toggleDemoState()">
               <ion-icon [name]="connectivity.online() ? 'wifi-outline' : 'cloud-offline-outline'"></ion-icon>
               <span class="network-pill-label">{{ connectivity.online() ? 'Online' : 'Offline' }}</span>
@@ -70,6 +78,10 @@ import { DriverNotificationService } from '../services/driver-notification.servi
     .eyebrow { color: var(--wf-muted); font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
     .top-icon { position: relative; width: 41px; height: 41px; border: 1px solid var(--wf-border); border-radius: 13px; background: var(--wf-surface); display: grid; place-items: center; color: var(--wf-primary); text-decoration: none; flex: 0 0 auto; }
     .top-icon ion-icon { font-size: 21px; }
+    button.top-icon { padding: 0; cursor: pointer; }
+    .refresh-action svg { width: 20px; height: 20px; }
+    .refresh-action.refreshing svg { animation: refresh-spin .8s linear infinite; }
+    @keyframes refresh-spin { to { transform: rotate(360deg); } }
     .notification-badge { position: absolute; right: -5px; top: -6px; min-width: 19px; height: 19px; padding: 0 5px; display: grid; place-items: center; border-radius: 10px; background: var(--wf-danger, #d92d20); color: #fff; border: 2px solid var(--wf-surface); font-size: 10px; font-weight: 900; line-height: 1; }
     .network-pill { min-height: 36px; border: 1px solid #cde8dc; background: #eaf8f1; color: #1b7b51; border-radius: 999px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 850; }
     .network-pill.offline { background: #fff2e4; color: #a55b13; border-color: #f0d1ae; }
@@ -90,7 +102,7 @@ import { DriverNotificationService } from '../services/driver-notification.servi
     .dashboard-shell .bottom-nav a { color: #9b9ca3; background: transparent; font-size: 12px; }
     .dashboard-shell .bottom-nav ion-icon { font-size: 25px; }
     .dashboard-shell .bottom-nav a.active { color: #f21d2f; background: transparent; }
-    @media(max-width: 430px) { .network-pill { width: 38px; padding: 0; justify-content: center; } .network-pill-label { display: none; } }
+    @media(max-width: 430px) { .refresh-action { display: none; } .network-pill { width: 38px; padding: 0; justify-content: center; } .network-pill-label { display: none; } }
   `]
 })
 export class MobileShellComponent {
@@ -102,8 +114,24 @@ export class MobileShellComponent {
   @Input() networkIconOnly = false;
   @Input() hideHeader = false;
   @Input() dashboardStyle = false;
+  @Input() refreshable = false;
+  @Output() readonly refreshRequested = new EventEmitter<RefreshRequest>();
+  readonly refreshing = signal(false);
   readonly connectivity = inject(ConnectivityService);
   readonly theme = inject(ThemeService);
   readonly notifications = inject(DriverNotificationService);
   get badgeLabel(): string { return this.notifications.unreadCount() > 99 ? '99+' : String(this.notifications.unreadCount()); }
+  requestHeaderRefresh(): void {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    this.refreshRequested.emit({ complete: () => this.refreshing.set(false) });
+  }
+  requestPullRefresh(event: CustomEvent): void {
+    if (this.refreshing()) { void (event.target as HTMLIonRefresherElement).complete(); return; }
+    this.refreshing.set(true);
+    this.refreshRequested.emit({ complete: () => {
+      this.refreshing.set(false);
+      void (event.target as HTMLIonRefresherElement).complete();
+    }});
+  }
 }

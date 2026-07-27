@@ -10,7 +10,7 @@ import {
   carOutline, warningOutline, cloudOutline, locationOutline, shieldCheckmarkOutline,
   checkmarkCircleOutline, waterOutline, lockClosedOutline, shirtOutline, cameraOutline,
   navigateOutline, bluetoothOutline, clipboardOutline, helpCircleOutline, cardOutline,
-  medkitOutline, chevronForwardOutline, logOutOutline, closeOutline
+  medkitOutline, chevronForwardOutline, logOutOutline, closeOutline, flameOutline
 } from 'ionicons/icons';
 
 @Component({
@@ -66,7 +66,8 @@ export class AppComponent {
       'medkit-outline': medkitOutline,
       'chevron-forward-outline': chevronForwardOutline,
       'log-out-outline': logOutOutline,
-      'close-outline': closeOutline
+      'close-outline': closeOutline,
+      'flame-outline': flameOutline
     });
   }
 }
