@@ -19,7 +19,7 @@ import { DriverAuthService } from '../services/driver-auth.service';
         <div class="grow">
           <h2 style="margin:0 0 5px">{{ profile()?.firstName }} {{ profile()?.lastName }}</h2>
           <div style="height:8px"></div>
-          <span class="pill dark">Active driver</span>
+          <span class="pill success">Active driver</span>
         </div>
       </ion-card-content>
     </ion-card>
@@ -41,7 +41,7 @@ import { DriverAuthService } from '../services/driver-auth.service';
     </ion-list>
 
     <ion-button class="wf-button wf-secondary" expand="block" (click)="logout()"><ion-icon slot="start" name="log-out-outline"></ion-icon>Sign out</ion-button>
-    <p class="caption text-center">WetFuel Driver v1.0.0 · Tenant WF-001</p>
+    <p class="caption text-center">WetFuel Driver v1.0.0</p>
   </main>
 </wf-mobile-shell>
   `

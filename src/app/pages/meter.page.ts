@@ -16,7 +16,7 @@ import { DriverStateService } from '../services/driver-state.service';
     <ion-card class="wf-card hero-card text-center">
       <ion-card-content>
         <div class="icon-tile" style="margin:0 auto 12px;background:rgba(255,255,255,.14);color:#fff"><ion-icon name="bluetooth-outline"></ion-icon></div>
-        <span class="pill dark">{{ state.meterConnected() ? 'Ready' : 'Confirmation required' }}</span>
+        <span class="pill" [class.success]="state.meterConnected()" [class.warning]="!state.meterConnected()">{{ state.meterConnected() ? 'Ready' : 'Confirmation required' }}</span>
         <h2 style="margin:14px 0 6px">{{ meterName() }}</h2>
         <p class="caption" style="margin:0">{{ vehicleLabel() }}</p>
       </ion-card-content>

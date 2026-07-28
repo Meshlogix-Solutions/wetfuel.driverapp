@@ -83,8 +83,8 @@ export interface RefreshRequest { complete: () => void; }
     .refresh-action.refreshing svg { animation: refresh-spin .8s linear infinite; }
     @keyframes refresh-spin { to { transform: rotate(360deg); } }
     .notification-badge { position: absolute; right: -5px; top: -6px; min-width: 19px; height: 19px; padding: 0 5px; display: grid; place-items: center; border-radius: 10px; background: var(--wf-danger, #d92d20); color: #fff; border: 2px solid var(--wf-surface); font-size: 10px; font-weight: 900; line-height: 1; }
-    .network-pill { min-height: 36px; border: 1px solid #cde8dc; background: #eaf8f1; color: #1b7b51; border-radius: 999px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 850; }
-    .network-pill.offline { background: #fff2e4; color: #a55b13; border-color: #f0d1ae; }
+    .network-pill { min-height: 36px; border: 1px solid #c9ead9; background: #eaf8f1; color: #1c7e52; border-radius: 999px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 850; }
+    .network-pill.offline { background: #ffeded; color: #b23535; border-color: #f1caca; }
     .network-pill.icon-only { width: 41px; min-width: 41px; height: 41px; padding: 0; justify-content: center; border-radius: 13px; }
     .network-pill.icon-only .network-pill-label { display: none; }
     .network-pill ion-icon { font-size: 16px; flex: 0 0 auto; }

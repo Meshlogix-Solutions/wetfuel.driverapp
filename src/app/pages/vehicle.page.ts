@@ -12,7 +12,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   standalone: true,
   imports: [CommonModule, MobileShellComponent, IonCard, IonCardContent, IonIcon, IonButton],
   template: `
-<wf-mobile-shell title="Confirm vehicle" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber ?? '')" [backRoute]="'/jobs/' + jobId">
+<wf-mobile-shell title="Confirm vehicle" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber ?? '')" [backRoute]="'/jobs/' + jobId" [showNav]="true">
   <main class="screen-body stack">
     <p class="page-lead">Confirm the vehicle you will use for this job. This confirmation is required for every delivery.</p>
     <ion-card *ngFor="let vehicle of vehicles()" class="wf-card selection-card" [class.selected]="selected === vehicle.id" (click)="selected = vehicle.id">

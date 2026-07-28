@@ -14,7 +14,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   template: `
 <wf-mobile-shell title="Active shift" subtitle="On duty" backRoute="/dashboard">
   <main class="screen-body stack">
-    <ion-card class="wf-card hero-card text-center"><ion-card-content><span class="pill dark">{{ paused() ? 'Paused' : 'On duty' }}</span><div style="font-size:52px;font-weight:950;letter-spacing:-.05em;margin:18px 0 5px">{{ duration }}</div><p class="caption" style="margin:0">Started {{ activeShift()?.startedAt | date:'short' }}</p></ion-card-content></ion-card>
+    <ion-card class="wf-card hero-card text-center"><ion-card-content><span class="pill" [class.warning]="paused()" [class.success]="!paused()">{{ paused() ? 'Paused' : 'On duty' }}</span><div style="font-size:52px;font-weight:950;letter-spacing:-.05em;margin:18px 0 5px">{{ duration }}</div><p class="caption" style="margin:0">Started {{ activeShift()?.startedAt | date:'short' }}</p></ion-card-content></ion-card>
     <section class="grid-2">
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">On-duty time</span><strong>{{ duration }}</strong><span class="caption">excluding breaks</span></ion-card-content></ion-card>
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Deliveries</span><strong>{{ completedToday() }} / {{ todayJobs() }}</strong><span class="caption">completed today</span></ion-card-content></ion-card>

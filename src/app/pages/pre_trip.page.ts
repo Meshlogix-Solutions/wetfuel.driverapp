@@ -14,7 +14,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   standalone: true,
   imports: [CommonModule, FormsModule, MobileShellComponent, IonCard, IonCardContent, IonItem, IonCheckbox, IonLabel, IonTextarea, IonButton],
   template: `
-<wf-mobile-shell title="Pre-job checklist" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber ?? '')" [backRoute]="'/jobs/' + jobId + '/vehicle-confirmation'">
+<wf-mobile-shell title="Pre-job checklist" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber ?? '')" [backRoute]="'/jobs/' + jobId + '/vehicle-confirmation'" [showNav]="true">
   <main class="screen-body stack">
     <ion-card class="wf-card hero-card"><ion-card-content><div class="row-between"><div><span class="pill dark">Required for every job</span><h2 style="margin:14px 0 5px">{{ completedCount }} of {{ items.length }} checked</h2><p class="caption" style="margin:0">Inspect the confirmed vehicle before starting this delivery.</p></div><strong style="font-size:32px">{{ progress }}%</strong></div><div style="height:14px"></div><div class="progress-track"><span [style.width.%]="progress"></span></div></ion-card-content></ion-card>
     <ion-card class="wf-card"><ion-card-content><ion-item *ngFor="let item of items; let i = index" lines="full" button="true" (click)="toggleItem(i)"><ion-checkbox slot="start" [checked]="checks[i]" (click)="$event.stopPropagation(); toggleItem(i)"></ion-checkbox><ion-label class="ion-text-wrap"><strong>{{ item[0] }}</strong><p class="caption">{{ item[1] }}</p></ion-label></ion-item></ion-card-content></ion-card>

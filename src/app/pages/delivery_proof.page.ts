@@ -66,8 +66,8 @@ import { ToastService } from '../services/toast.service';
           @if (!validMeter) { <p style="color:var(--ion-color-danger)">Enter both totalizers and make sure their difference matches the delivered gallons.</p> }
         </ion-card-content></ion-card>
         <ion-card class="wf-card"><ion-card-content>
-          <ion-item lines="full"><ion-checkbox slot="start" [(ngModel)]="safe"></ion-checkbox><ion-label class="ion-text-wrap"><strong>No leaks or spills observed</strong><p class="caption">Hose disconnected and caps secured.</p></ion-label></ion-item>
-          <ion-item lines="none"><ion-checkbox slot="start" [(ngModel)]="notified"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Customer/site contact notified</strong><p class="caption">Delivery completion communicated.</p></ion-label></ion-item>
+          <ion-item lines="full" button="true" (click)="safe=!safe"><ion-checkbox slot="start" [checked]="safe" (click)="$event.stopPropagation(); safe=!safe"></ion-checkbox><ion-label class="ion-text-wrap"><strong>No leaks or spills observed</strong><p class="caption">Hose disconnected and caps secured.</p></ion-label></ion-item>
+          <ion-item lines="none" button="true" (click)="notified=!notified"><ion-checkbox slot="start" [checked]="notified" (click)="$event.stopPropagation(); notified=!notified"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Customer/site contact notified</strong><p class="caption">Delivery completion communicated.</p></ion-label></ion-item>
         </ion-card-content></ion-card>
         <ion-item><ion-textarea label="Driver notes" labelPlacement="stacked" [(ngModel)]="notes" placeholder="Delivery completed without issue..."></ion-textarea></ion-item>
         <ion-button class="wf-button" expand="block" [disabled]="!canReview" (click)="review()">Review delivery summary</ion-button>

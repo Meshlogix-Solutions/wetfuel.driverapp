@@ -192,14 +192,14 @@ import { LoaderComponent } from '../shared/loader.component';
     .status-segment strong { color: #a6a7ad; white-space: nowrap; }
     .status-segment.active strong { color: #43dd67; }
     .status-segment.break strong { color: #ffb347; }
-    .status-segment ion-icon { flex: 0 0 auto; color: #b7b8bf; font-size: 18px; }
+    .status-segment ion-icon { flex: 0 0 auto; color: var(--wf-primary); font-size: 18px; }
     .status-segment > span:not(.live-dot) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .live-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #71737b; box-shadow: 0 0 0 3px rgba(113,115,123,.09); }
     .status-segment.active .live-dot { background: #39e35d; box-shadow: 0 0 0 3px rgba(57,227,93,.09); }
     .status-segment.break .live-dot { background: #ffad3d; box-shadow: 0 0 0 3px rgba(255,173,61,.09); }
     button.status-segment { border-top: 0; border-bottom: 0; border-left: 0; background: transparent; font: inherit; cursor: pointer; }
     .vehicle-segment span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .panel, .metric-panel { border: 1px solid #383a43; border-radius: 21px; background: linear-gradient(145deg,#17181e,#101116); box-shadow: 0 14px 34px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.025); }
+    .panel, .metric-panel { border: 1px solid #383a43; border-radius: 21px; background: transparent; box-shadow: none; }
     .active-shift-panel { padding: 16px; }
     .active-shift-panel.inactive .shift-details { grid-template-columns: 58px minmax(0, 1fr); }
     .active-shift-panel.inactive .vehicle-detail { display: none; }
@@ -221,7 +221,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .vehicle-inventory-heading ion-icon { color: var(--wf-primary); font-size: 16px; }
     .vehicle-inventory-heading strong { color: var(--wf-text); font-size: 12px; white-space: nowrap; }
     .vehicle-inventory-track { height: 7px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: var(--wf-border); }
-    .vehicle-inventory-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--wf-primary), var(--wf-accent)); }
+    .vehicle-inventory-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--wf-primary), var(--wf-primary-tint)); }
     .vehicle-inventory small { display: block; margin-top: 6px; color: var(--wf-muted); font-size: 10px; text-align: right; }
     .primary-dashboard-button, .outline-dashboard-button { width: 100%; min-height: 50px; border-radius: 11px; color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
     .primary-dashboard-button { border: 0; background: linear-gradient(180deg,#f51d31,#e80e23); box-shadow: 0 9px 22px rgba(238,20,40,.18); }
@@ -237,7 +237,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .metric-panel p b { color: #f21d2f; }
     .metric-panel .progress-track { width: 100%; height: 8px; margin: 1px 0 10px; overflow: hidden; border-radius: 99px; background: #292b31; }
     .metric-panel .progress-track span { display: block; height: 100%; border-radius: inherit; background: #f21d2f; }
-    .metric-panel .complete-pill { padding: 7px 9px; border-radius: 999px; background: rgba(42,210,77,.08); color: #42dc61; font-weight: 750; }
+    .metric-panel .complete-pill { padding: 7px 9px; border-radius: 999px; background: #eaf8f1; color: #1c7e52; font-weight: 750; }
     .metric-panel.shortfall p b { color: #ffb347; }
     .delivery-panel { padding: 17px; }
     .delivery-panel.clickable { cursor: pointer; }
@@ -249,7 +249,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .job-identity div:nth-child(2) { min-width: 0; }
     .job-identity strong { display: block; overflow: hidden; color: #f6f6f7; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
     .job-identity p { margin: 5px 0 0; overflow: hidden; color: #a8a9af; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-    .job-identity > ion-icon { color: #f3f3f4; font-size: 24px; }
+    .job-identity > ion-icon { color: var(--wf-primary); font-size: 24px; }
     .delivery-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 19px 0; }
     .delivery-facts > div { min-width: 0; padding: 0 10px; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 7px; border-right: 1px solid #30323a; }
     .delivery-facts > div:first-child { padding-left: 0; }
@@ -259,7 +259,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .delivery-facts span { color: #8f9097; font-size: 10px; }
     .outline-dashboard-button { border: 1px solid #f21d2f; background: transparent; color: #f21d2f; }
     .empty-delivery { min-height: 190px; display: grid; justify-items: center; align-content: center; text-align: center; }
-    .empty-icon { width: 60px; height: 60px; margin-bottom: 15px; display: grid; place-items: center; border-radius: 50%; background: #212228; color: #e2e2e4; }
+    .empty-icon { width: 60px; height: 60px; margin-bottom: 15px; display: grid; place-items: center; border-radius: 50%; background: var(--wf-primary-soft); color: var(--wf-primary); }
     .empty-icon ion-icon { font-size: 29px; }
     .empty-delivery strong { font-size: 18px; }
     .empty-delivery p { max-width: 280px; margin: 8px 0 0; color: #9c9da3; font-size: 12px; line-height: 1.5; }
@@ -270,14 +270,15 @@ import { LoaderComponent } from '../shared/loader.component';
     .driver-dashboard { padding-top: 18px; background: var(--wf-background); color: var(--wf-text); }
     .panel, .metric-panel, .status-strip {
       border-color: var(--wf-border);
-      background: var(--wf-surface);
-      box-shadow: var(--wf-shadow);
+      background: transparent;
+      box-shadow: none;
     }
     .dashboard-loading { color: var(--wf-muted); }
     .dashboard-error { border-color: color-mix(in srgb, var(--wf-danger) 35%, var(--wf-border)); background: color-mix(in srgb, var(--wf-danger) 9%, var(--wf-surface)); color: var(--wf-text); }
     .dashboard-error button { color: var(--wf-danger); }
     .status-segment { color: var(--wf-muted); border-color: var(--wf-border); }
-    .status-segment strong, .status-segment ion-icon { color: var(--wf-muted); }
+    .status-segment strong { color: var(--wf-muted); }
+    .status-segment ion-icon { color: var(--wf-primary); }
     .status-segment.active strong { color: var(--wf-success); }
     .status-segment.break strong { color: var(--wf-warning); }
     .status-segment.active .live-dot { background: var(--wf-success); }
@@ -286,7 +287,8 @@ import { LoaderComponent } from '../shared/loader.component';
     .shift-detail span, .metric-panel > span, .metric-panel p, .job-identity p,
     .delivery-facts span, .empty-delivery p { color: var(--wf-muted); }
     .shift-detail strong, .panel-chevron, .metric-panel > strong, .job-identity strong,
-    .job-identity > ion-icon, .delivery-facts strong, .empty-delivery strong { color: var(--wf-text); }
+    .delivery-facts strong, .empty-delivery strong { color: var(--wf-text); }
+    .job-identity > ion-icon { color: var(--wf-primary); }
     .vehicle-detail, .delivery-facts > div { border-color: var(--wf-border); }
     .primary-dashboard-button { background: linear-gradient(180deg, var(--wf-primary-tint), var(--wf-primary)); }
     .metric-icon { background: var(--wf-primary-soft); color: var(--wf-primary); }
@@ -294,11 +296,11 @@ import { LoaderComponent } from '../shared/loader.component';
     .metric-panel p b, .section-heading a { color: var(--wf-primary); }
     .metric-panel .progress-track { background: var(--wf-accent-surface); }
     .metric-panel .progress-track span { background: var(--wf-primary); }
-    .metric-panel .complete-pill { background: color-mix(in srgb, var(--wf-success) 12%, var(--wf-surface)); color: var(--wf-success); }
+    .metric-panel .complete-pill { background: #eaf8f1; color: #1c7e52; }
     .job-sequence { background: var(--wf-primary); }
     .delivery-facts ion-icon { color: var(--wf-primary); }
     .outline-dashboard-button { border-color: var(--wf-primary); color: var(--wf-primary); }
-    .empty-icon { background: var(--wf-accent-surface); color: var(--wf-muted); }
+    .empty-icon { background: var(--wf-primary-soft); color: var(--wf-primary); }
     @media (max-width: 520px) {
       .driver-dashboard { padding-right: 13px; padding-left: 13px; }
       .shift-details { grid-template-columns: 50px 1fr 1fr 15px; gap: 9px; }

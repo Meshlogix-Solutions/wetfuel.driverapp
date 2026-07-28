@@ -1,14 +1,14 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
-import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, IonButton } from '@ionic/angular/standalone';
+import { Router } from '@angular/router';
+import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton } from '@ionic/angular/standalone';
 import { DriverAuthService } from '../services/driver-auth.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, RouterLink, IonContent, IonCard, IonCardContent, IonItem, IonInput, IonCheckbox, IonButton],
+  imports: [FormsModule, IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton],
   template: `
 <ion-content [fullscreen]="true">
   <div class="auth-page">
@@ -22,7 +22,6 @@ import { ToastService } from '../services/toast.service';
           </div>
           <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
           <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
-          <div class="row-between"><ion-checkbox labelPlacement="end">Remember me</ion-checkbox><a routerLink="/verification" class="caption">Forgot password?</a></div>
           <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Signing in...' : 'Sign in securely' }}</ion-button>
          </ion-card-content>
       </ion-card>
