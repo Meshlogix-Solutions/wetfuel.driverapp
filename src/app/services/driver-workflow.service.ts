@@ -28,7 +28,7 @@ export class DriverWorkflowService {
       return false;
     }
     const location = await this.captureLocation();
-    const started = await this.state.clockIn(undefined, location?.latitude, location?.longitude);
+    const started = await this.state.clockIn(undefined, location?.latitude, location?.longitude, location?.accuracyMeters);
     if (!started) {
       try {
         if (await firstValueFrom(this.api.getActiveShift())) {
@@ -43,10 +43,10 @@ export class DriverWorkflowService {
     return started;
   }
 
-  private captureLocation(): Promise<{ latitude:number; longitude:number } | null> {
+  private captureLocation(): Promise<{ latitude:number; longitude:number; accuracyMeters:number } | null> {
     if (!navigator.geolocation) return Promise.resolve(null);
     return new Promise(resolve => navigator.geolocation.getCurrentPosition(
-      position => resolve({ latitude:position.coords.latitude, longitude:position.coords.longitude }),
+      position => resolve({ latitude:position.coords.latitude, longitude:position.coords.longitude, accuracyMeters:position.coords.accuracy }),
       () => resolve(null),
       { enableHighAccuracy:true, timeout:10000, maximumAge:30000 },
     ));

@@ -65,12 +65,12 @@ export class DriverStateService {
     }
   }
 
-  async clockIn(note?: string, latitude?: number, longitude?: number): Promise<boolean> {
+  async clockIn(note?: string, latitude?: number, longitude?: number, accuracyMeters?: number): Promise<boolean> {
     const shiftId = crypto.randomUUID();
     // A new shift always begins without carrying a vehicle choice from an older session.
     // Vehicle selection is confirmed explicitly against the logged-in driver's assignments.
     this.selectedVehicleId.set(null);
-    return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude }, shiftId);
+    return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude, accuracyMeters }, shiftId);
   }
 
   async clockOut(): Promise<boolean> {

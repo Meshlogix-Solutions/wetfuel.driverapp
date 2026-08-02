@@ -170,6 +170,17 @@ export class DriverApiService {
       .pipe(map(response => response.data));
   }
 
+  recordLocation(jobId: string, latitude: number, longitude: number, accuracyMeters: number): Observable<void> {
+    const event: OfflineDriverEvent = {
+      clientEventId: crypto.randomUUID(),
+      eventType: 'location.recorded',
+      aggregateId: jobId,
+      occurredAt: new Date().toISOString(),
+      payload: { latitude, longitude, accuracyMeters },
+    };
+    return this.sync([event]).pipe(map(() => undefined));
+  }
+
   lookupEquipment(jobId:string,qrCode:string):Observable<DriverEquipment>{
     return this.http.get<ApiResponse<DriverEquipment>>(`${environment.apiUrl}/equipment/driver/jobs/${jobId}/lookup?qrCode=${encodeURIComponent(qrCode)}`).pipe(map(response=>response.data));
   }

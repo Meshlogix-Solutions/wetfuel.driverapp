@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonCheckbox, IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-arrival',
@@ -37,7 +38,7 @@ export class ArrivalPage {
   longitude?: number;
   accuracy?: number;
   locationStatus = 'Requesting the device location...';
-  constructor(readonly state: DriverStateService, private readonly router: Router) {}
+  constructor(readonly state: DriverStateService, private readonly router: Router, private readonly toast: ToastService) {}
 
   ionViewWillEnter(): void {
     if (!navigator.geolocation) { this.locationStatus = 'Location is unavailable on this device.'; return; }
@@ -46,17 +47,19 @@ export class ArrivalPage {
         this.latitude = position.coords.latitude;
         this.longitude = position.coords.longitude;
         this.accuracy = position.coords.accuracy;
-        this.locationStatus = `GPS captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;
+        this.locationStatus = position.coords.accuracy <= 200
+          ? `GPS captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`
+          : 'GPS accuracy is too low. Move to an open area and reopen this screen.';
       },
-      () => this.locationStatus = 'Location permission was not granted. Arrival will be recorded without coordinates.',
+      () => this.locationStatus = 'Location permission is required to confirm arrival.',
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   }
-  get canArrive(): boolean { return this.positioned && this.contactNotified && this.hazardsChecked; }
+  get canArrive(): boolean { return this.positioned && this.contactNotified && this.hazardsChecked && this.latitude != null && this.longitude != null && !!this.accuracy && this.accuracy <= 200; }
   async arrive(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job || !this.canArrive) return;
-    if (!(await this.state.updateJob(job.id, 'arrived', { latitude:this.latitude, longitude:this.longitude, accuracyMeters:this.accuracy }))) return;
+    if (!(await this.state.updateJob(job.id, 'arrived', { latitude:this.latitude, longitude:this.longitude, accuracyMeters:this.accuracy }))) { void this.toast.error(this.state.syncError()||'Arrival could not be confirmed.'); return; }
     void this.router.navigate(['/jobs', job.id, 'qr-scanner']);
   }
 }
