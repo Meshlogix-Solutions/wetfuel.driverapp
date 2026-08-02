@@ -20,6 +20,14 @@ interface DeliveryDraft {
   deliveredGallons?: number;
 }
 
+export interface PendingArrivalLocation {
+  jobId: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+  capturedAt: string;
+}
+
 const EMPTY_DRAFT: DeliveryDraft = { meterPhotoCaptured: false, equipmentPhotoCaptured: false };
 
 // Every screen fetches exactly the data it needs itself (via DriverApiService) instead of
@@ -43,6 +51,8 @@ export class DriverStateService {
   readonly deliveryDraft = signal<DeliveryDraft>(EMPTY_DRAFT);
   readonly busy = signal(false);
   readonly syncError = signal('');
+  readonly syncWarnings = signal<Array<{ code:string; message:string }>>([]);
+  readonly pendingArrivalLocation = signal<PendingArrivalLocation | null>(null);
   readonly lastSyncAt = signal<string | null>(null);
 
   /** Fetches just this one job and makes it the current workflow job - the guard calls
@@ -65,12 +75,12 @@ export class DriverStateService {
     }
   }
 
-  async clockIn(note?: string, latitude?: number, longitude?: number, accuracyMeters?: number): Promise<boolean> {
+  async clockIn(note?: string, latitude?: number, longitude?: number, accuracyMeters?: number, confirmOutsideTerritory = false): Promise<boolean> {
     const shiftId = crypto.randomUUID();
     // A new shift always begins without carrying a vehicle choice from an older session.
     // Vehicle selection is confirmed explicitly against the logged-in driver's assignments.
     this.selectedVehicleId.set(null);
-    return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude, accuracyMeters }, shiftId);
+    return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude, accuracyMeters, confirmOutsideTerritory }, shiftId);
   }
 
   async clockOut(): Promise<boolean> {
@@ -145,6 +155,14 @@ export class DriverStateService {
     if (!(await this.send(`job.${action}`, payload, jobId))) return false;
     if (job && job.id === jobId) this.selectedJob.set({ ...job, status: action });
     return true;
+  }
+
+  setPendingArrivalLocation(location: PendingArrivalLocation): void {
+    this.pendingArrivalLocation.set(location);
+  }
+
+  clearPendingArrivalLocation(jobId: string): void {
+    if (this.pendingArrivalLocation()?.jobId === jobId) this.pendingArrivalLocation.set(null);
   }
 
   async completeDelivery(
@@ -265,9 +283,13 @@ export class DriverStateService {
       payload,
     };
     this.busy.set(true);
+    this.syncWarnings.set([]);
     try {
       const result = await firstValueFrom(this.api.sync([event]));
       this.lastSyncAt.set(result.serverTime);
+      this.syncWarnings.set((result.warnings ?? [])
+        .filter(warning => warning.clientEventId === event.clientEventId)
+        .map(({ code, message }) => ({ code, message })));
       this.syncError.set('');
       return true;
     } catch (error: unknown) {

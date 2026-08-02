@@ -28,7 +28,22 @@ export class DriverWorkflowService {
       return false;
     }
     const location = await this.captureLocation();
-    const started = await this.state.clockIn(undefined, location?.latitude, location?.longitude, location?.accuracyMeters);
+    let started = await this.state.clockIn(undefined, location?.latitude, location?.longitude, location?.accuracyMeters);
+    if (!started && this.state.syncError().includes('not on the depot site yet')) {
+      const alert = await this.alerts.create({
+        header: 'Outside depot site',
+        message: 'You are not on the depot site yet. Do you still want to clock in?',
+        buttons: [{ text:'Not yet', role:'cancel' }, { text:'Clock in anyway', role:'confirm' }],
+      });
+      await alert.present();
+      const result = await alert.onDidDismiss();
+      if (result.role !== 'confirm') return false;
+      started = await this.state.clockIn(undefined, location?.latitude, location?.longitude, location?.accuracyMeters, true);
+    }
+    if (started) {
+      const warning = this.state.syncWarnings()[0];
+      if (warning) void this.toast.warning(warning.message);
+    }
     if (!started) {
       try {
         if (await firstValueFrom(this.api.getActiveShift())) {

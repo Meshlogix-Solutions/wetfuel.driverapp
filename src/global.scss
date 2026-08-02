@@ -1,3 +1,5 @@
+@import 'mapbox-gl/dist/mapbox-gl.css';
+
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--wf-background); color: var(--wf-text); }
 body { font-family: var(--ion-font-family); }

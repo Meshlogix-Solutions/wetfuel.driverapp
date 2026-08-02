@@ -160,11 +160,13 @@ export class DriverApiService {
   sync(events: OfflineDriverEvent[]): Observable<{
     acceptedEventIds: string[];
     alreadyProcessedEventIds: string[];
+    warnings: Array<{ clientEventId:string; code:string; message:string }>;
     serverTime: string;
   }> {
     return this.http.post<ApiResponse<{
       acceptedEventIds: string[];
       alreadyProcessedEventIds: string[];
+      warnings: Array<{ clientEventId:string; code:string; message:string }>;
       serverTime: string;
     }>>(`${environment.apiUrl}/driver/app/sync`, { events })
       .pipe(map(response => response.data));

@@ -75,7 +75,10 @@
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
-            "port": 4300
+            "port": 4300,
+            "prebundle": {
+              "exclude": ["mapbox-gl", "mapbox-gl/esm"]
+            }
           },
           "configurations": {
             "production": {

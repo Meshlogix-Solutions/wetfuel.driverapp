@@ -33,6 +33,7 @@ Thumbs.db
 # Env files
 .env
 .env.local
+/public/config.js
 
 # SQL scripts
 *.sql

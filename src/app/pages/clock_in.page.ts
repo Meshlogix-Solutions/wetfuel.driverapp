@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
+import { AlertController, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
 import { ToastService } from '../services/toast.service';
@@ -35,16 +35,34 @@ import { ToastService } from '../services/toast.service';
 })
 export class ClockInPage {
   latitude?:number;longitude?:number;accuracyMeters?:number;locationCaptured=false;locationStatus='Location will be requested when you clock in.';
-  constructor(private readonly state: DriverStateService, private readonly router: Router, private readonly toast: ToastService) {}
+  constructor(private readonly state: DriverStateService, private readonly router: Router, private readonly toast: ToastService, private readonly alerts: AlertController) {}
   get currentTime():string{return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
   clockIn(): void {
     if(!navigator.geolocation){this.locationStatus='Location is unavailable on this device.';void this.toast.error(this.locationStatus);return;}
     this.locationStatus='Capturing location...';
     navigator.geolocation.getCurrentPosition(
-      position=>{this.latitude=position.coords.latitude;this.longitude=position.coords.longitude;this.accuracyMeters=position.coords.accuracy;this.locationCaptured=position.coords.accuracy<=200;this.locationStatus=this.locationCaptured?`Captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`:'GPS accuracy is too low. Move to an open area and try again.';if(this.locationCaptured)void this.finishClockIn();},
+      position=>{this.latitude=position.coords.latitude;this.longitude=position.coords.longitude;this.accuracyMeters=position.coords.accuracy;this.locationCaptured=true;this.locationStatus=`Captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;void this.finishClockIn();},
       ()=>{this.locationStatus='Location permission is required to clock in.';void this.toast.error(this.locationStatus);},
       {enableHighAccuracy:true,timeout:10000,maximumAge:30000},
     );
   }
-  private async finishClockIn():Promise<void>{if(await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters))void this.router.navigateByUrl('/dashboard');else void this.toast.error(this.state.syncError()||'Clock-in could not be completed.');}
+  private async finishClockIn():Promise<void>{
+    let clockedIn=await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters);
+    if(!clockedIn&&this.state.syncError().includes('not on the depot site yet')){
+      const alert=await this.alerts.create({
+        header:'Outside depot site',
+        message:'You are not on the depot site yet. Do you still want to clock in?',
+        buttons:[{text:'Not yet',role:'cancel'},{text:'Clock in anyway',role:'confirm'}],
+      });
+      await alert.present();
+      const result=await alert.onDidDismiss();
+      if(result.role!=='confirm')return;
+      clockedIn=await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters,true);
+    }
+    if(clockedIn){
+      const warning=this.state.syncWarnings()[0];
+      if(warning)await this.toast.warning(warning.message);
+      void this.router.navigateByUrl('/dashboard');
+    }else void this.toast.error(this.state.syncError()||'Clock-in could not be completed.');
+  }
 }
