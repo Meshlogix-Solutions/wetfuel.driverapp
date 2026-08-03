@@ -62,7 +62,6 @@ This package intentionally provides UI and mocked behavior. Connect the followin
 - Google Maps SDK or Maps JavaScript API
 - LCR-II / LCR-IQ Bluetooth or hardware integration
 - IndexedDB/SQLite offline queue and conflict resolution
-- Push notifications
 - WetFuel authentication and backend APIs
 
 ## White-label branding
