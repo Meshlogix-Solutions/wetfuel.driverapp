@@ -26,11 +26,21 @@ import { DriverAuthService } from '../services/driver-auth.service';
 
     <ion-card class="wf-card">
       <ion-card-content class="stack">
-        <h2 class="section-title">Compliance documents</h2>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h2 class="section-title" style="margin:0">Compliance documents</h2>
+          <ion-button size="small" fill="outline" routerLink="/documents">
+            <ion-icon slot="start" name="camera-outline"></ion-icon>
+            Add
+          </ion-button>
+        </div>
         <div class="row"><div class="icon-tile"><ion-icon name="card-outline"></ion-icon></div><div class="grow"><strong>{{ profile()?.license?.type }} License</strong><p class="caption" style="margin:4px 0 0">Expires {{ profile()?.license?.expiryDate | date }}</p></div></div>
         @for (certificate of profile()?.certifications ?? []; track certificate.id) {
           <div class="row"><div class="icon-tile"><ion-icon name="shield-checkmark-outline"></ion-icon></div><div class="grow"><strong>{{ certificate.name }}</strong><p class="caption" style="margin:4px 0 0">Expires {{ certificate.expiryDate | date }}</p></div><span class="pill" [class.warning]="certificate.status !== 'valid'" [class.success]="certificate.status === 'valid'">{{ certificate.status }}</span></div>
         }
+        <ion-button class="wf-button wf-secondary" expand="block" routerLink="/documents">
+          <ion-icon slot="start" name="clipboard-outline"></ion-icon>
+          Capture or upload documents
+        </ion-button>
       </ion-card-content>
     </ion-card>
 

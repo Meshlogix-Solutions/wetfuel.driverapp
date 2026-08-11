@@ -197,4 +197,74 @@ export class DriverApiService {
   deleteUploadedFile(url: string): Observable<void> {
     return this.http.delete<void>(`${environment.apiUrl}/user/UploadFile`, { params: { url } });
   }
+
+  getMyComplianceDocuments(): Observable<DriverComplianceDocument[]> {
+    return this.http
+      .get<ApiResponse<DriverComplianceDocument[]>>(`${environment.apiUrl}/driver/app/compliance/documents`)
+      .pipe(map(response => response.data));
+  }
+
+  uploadComplianceDocument(
+    file: File,
+    documentType: string,
+    options?: { documentName?: string; issuedDate?: string; expiryDate?: string; notes?: string },
+  ): Observable<DriverComplianceDocument> {
+    const form = new FormData();
+    form.append('file', file, file.name || 'document.jpg');
+    form.append('documentType', documentType);
+    if (options?.documentName) form.append('documentName', options.documentName);
+    if (options?.issuedDate) form.append('issuedDate', options.issuedDate);
+    if (options?.expiryDate) form.append('expiryDate', options.expiryDate);
+    if (options?.notes) form.append('notes', options.notes);
+    return this.http
+      .post<ApiResponse<DriverComplianceDocument>>(`${environment.apiUrl}/driver/app/compliance/documents`, form)
+      .pipe(map(response => response.data));
+  }
+
+  extractDocument(file: File, documentType: string): Observable<ComplianceExtractedFields> {
+    const form = new FormData();
+    form.append('file', file, file.name || 'document.jpg');
+    form.append('documentType', documentType || 'other');
+
+    return this.http
+      .post<ApiResponse<ComplianceExtractedFields>>(`${environment.apiUrl}/compliance/extract`, form)
+      .pipe(map(response => response.data));
+  }
+}
+
+export interface DriverComplianceDocument {
+  id: string;
+  tenantId: string;
+  franchiseId?: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  documentName: string;
+  documentType: string;
+  issuedDate?: string;
+  expiryDate?: string;
+  fileUrl?: string;
+  originalFileName: string;
+  contentType?: string;
+  notes?: string;
+  uploadedByName: string;
+  createdAt: string;
+  status?: string;
+  daysUntilExpiry?: number;
+  holderName?: string;
+  documentNumber?: string;
+  extractedFromAi?: boolean;
+  replacedPrevious?: boolean;
+}
+
+export interface ComplianceExtractedFields {
+  holderName?: string;
+  documentNumber?: string;
+  issuedDate?: string;
+  expiryDate?: string;
+  issuer?: string;
+  vehicleIdentifier?: string;
+  suggestedDocumentName?: string;
+  documentType?: string;
+  entityType?: string;
 }

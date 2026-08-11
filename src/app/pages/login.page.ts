@@ -1,14 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton } from '@ionic/angular/standalone';
+import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { DriverAuthService } from '../services/driver-auth.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton],
+  imports: [FormsModule, IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon],
   template: `
 <ion-content [fullscreen]="true">
   <div class="auth-page">
@@ -21,7 +21,7 @@ import { ToastService } from '../services/toast.service';
             <p class="page-lead">Sign in to see today's route, complete inspections and record deliveries.</p>
           </div>
           <ion-item><ion-input label="Driver email" labelPlacement="stacked" [(ngModel)]="identity" placeholder="driver@wetfuel.com"></ion-input></ion-item>
-          <ion-item><ion-input label="Password" labelPlacement="stacked" type="password" [(ngModel)]="password"></ion-input></ion-item>
+          <ion-item><ion-input label="Password" labelPlacement="stacked" [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="password"><ion-icon slot="end" style="cursor:pointer" [name]="showPassword() ? 'eye-off-outline' : 'eye-outline'" [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'" (click)="showPassword.set(!showPassword())"></ion-icon></ion-input></ion-item>
           <ion-button class="wf-button" expand="block" [disabled]="loading" (click)="login()">{{ loading ? 'Signing in...' : 'Sign in securely' }}</ion-button>
          </ion-card-content>
       </ion-card>
@@ -34,6 +34,8 @@ export class LoginPage {
   identity = 'driver@wetfuel.com';
   password = '';
   loading = false;
+  readonly showPassword = signal(false);
+
   constructor(
     private readonly auth: DriverAuthService,
     private readonly router: Router,

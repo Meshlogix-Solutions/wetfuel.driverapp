@@ -43,6 +43,7 @@ export const routes: Routes = [
       { path: 'history', loadComponent: () => import('./pages/history.page').then(m => m.HistoryPage) },
       { path: 'hours', loadComponent: () => import('./pages/hours.page').then(m => m.HoursPage) },
       { path: 'profile', loadComponent: () => import('./pages/profile.page').then(m => m.ProfilePage) },
+      { path: 'documents', loadComponent: () => import('./pages/documents.page').then(m => m.DocumentsPage) },
     ],
   },
   { path: '**', redirectTo: 'dashboard' }
