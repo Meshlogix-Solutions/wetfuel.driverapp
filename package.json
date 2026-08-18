@@ -21,6 +21,8 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.0.0",
+    "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/network": "^8.0.1",
     "@ionic/angular": "^8.0.0",
     "barcode-detector": "^3.2.1",
     "ionicons": "^8.0.0",

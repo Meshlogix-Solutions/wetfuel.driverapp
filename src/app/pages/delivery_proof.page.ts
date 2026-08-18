@@ -121,6 +121,8 @@ export class DeliveryProofPage implements OnInit {
   endingTotalizer?: number;
   meterPhotoUrl = '';
   equipmentPhotoUrl = '';
+  private meterStoredUrl = '';
+  private equipmentStoredUrl = '';
   previewPhotoUrl = '';
   previewPhotoTitle = '';
   safe = false;
@@ -133,13 +135,15 @@ export class DeliveryProofPage implements OnInit {
     private readonly cdr: ChangeDetectorRef,
     private readonly toast: ToastService,
   ) {}
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const draft = this.state.deliveryDraft();
     this.startingTotalizer = draft.startingTotalizer;
     this.endingTotalizer = draft.endingTotalizer;
     this.notes = draft.notes ?? this.notes;
-    this.meterPhotoUrl = draft.meterPhotoUrl ?? '';
-    this.equipmentPhotoUrl = draft.equipmentPhotoUrl ?? '';
+    this.meterStoredUrl = draft.meterPhotoUrl ?? '';
+    this.equipmentStoredUrl = draft.equipmentPhotoUrl ?? '';
+    this.meterPhotoUrl = await this.state.resolvePhotoUrl(this.meterStoredUrl);
+    this.equipmentPhotoUrl = await this.state.resolvePhotoUrl(this.equipmentStoredUrl);
   }
   get validMeter(): boolean {
     if (this.startingTotalizer == null && this.endingTotalizer == null) return true;
@@ -156,10 +160,17 @@ export class DeliveryProofPage implements OnInit {
     if (!file) return;
     this.uploading = kind;
     try {
-      const url = await this.state.uploadEvidence(file);
-      const previous = kind === 'meter' ? this.meterPhotoUrl : this.equipmentPhotoUrl;
-      if (kind === 'meter') this.meterPhotoUrl = url; else this.equipmentPhotoUrl = url;
-      if (previous && previous !== url) void this.state.deleteEvidence(previous);
+      const storedUrl = await this.state.uploadEvidence(file, kind);
+      const previousStored = kind === 'meter' ? this.meterStoredUrl : this.equipmentStoredUrl;
+      const displayUrl = await this.state.resolvePhotoUrl(storedUrl);
+      if (kind === 'meter') {
+        this.meterStoredUrl = storedUrl;
+        this.meterPhotoUrl = displayUrl;
+      } else {
+        this.equipmentStoredUrl = storedUrl;
+        this.equipmentPhotoUrl = displayUrl;
+      }
+      if (previousStored) void this.state.deleteEvidence(previousStored);
       this.saveDraft();
     } catch (error: unknown) {
       const failure = error as { error?: { message?: string }; message?: string };
@@ -174,9 +185,15 @@ export class DeliveryProofPage implements OnInit {
     }
   }
   removePhoto(kind: 'meter' | 'equipment'): void {
-    const previous = kind === 'meter' ? this.meterPhotoUrl : this.equipmentPhotoUrl;
-    if (kind === 'meter') this.meterPhotoUrl = ''; else this.equipmentPhotoUrl = '';
-    if (previous) void this.state.deleteEvidence(previous);
+    const previousStored = kind === 'meter' ? this.meterStoredUrl : this.equipmentStoredUrl;
+    if (kind === 'meter') {
+      this.meterPhotoUrl = '';
+      this.meterStoredUrl = '';
+    } else {
+      this.equipmentPhotoUrl = '';
+      this.equipmentStoredUrl = '';
+    }
+    if (previousStored) void this.state.deleteEvidence(previousStored);
     this.saveDraft();
   }
   openPreview(url: string, title: string): void {
@@ -198,8 +215,8 @@ export class DeliveryProofPage implements OnInit {
   private saveDraft(): void {
     this.state.setDeliveryProof({
       startingTotalizer: this.startingTotalizer, endingTotalizer: this.endingTotalizer, notes: this.notes,
-      meterPhotoCaptured: !!this.meterPhotoUrl, equipmentPhotoCaptured: !!this.equipmentPhotoUrl,
-      meterPhotoUrl: this.meterPhotoUrl, equipmentPhotoUrl: this.equipmentPhotoUrl,
+      meterPhotoCaptured: !!this.meterStoredUrl, equipmentPhotoCaptured: !!this.equipmentStoredUrl,
+      meterPhotoUrl: this.meterStoredUrl, equipmentPhotoUrl: this.equipmentStoredUrl,
     });
   }
 }

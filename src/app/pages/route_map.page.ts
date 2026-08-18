@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonButton, IonIcon } from '@ionic/angular/standalone';
 import type { GeoJSONSource, Map as MapboxMap, Marker } from 'mapbox-gl/esm';
 import { environment } from '../../environments/environment';
+import { DriverGeolocationService, DriverPosition } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
@@ -37,8 +38,12 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 
     <div class="grid-2">
       <ion-button class="wf-button wf-secondary" expand="block" [href]="mapsUrl" target="_blank" rel="noopener">Voice navigation</ion-button>
-      <ion-button class="wf-button" expand="block" [disabled]="!latestPosition" (click)="openArrival()">I've arrived</ion-button>
+      <ion-button class="wf-button" expand="block" [disabled]="!latestPosition" (click)="openArrival()">{{ latestPosition ? "I've arrived" : locating ? 'Getting location...' : 'Waiting for GPS' }}</ion-button>
     </div>
+    @if (!latestPosition && locationError) {
+      <p class="caption" style="color:var(--ion-color-danger);margin:0">{{ locationError }}</p>
+      <ion-button class="wf-button wf-secondary" expand="block" (click)="retryLocation()">Retry location</ion-button>
+    }
     <ion-button class="wf-button" color="danger" fill="outline" expand="block" routerLink="/incident">Report route or safety issue</ion-button>
   </main>
 </wf-mobile-shell>
@@ -60,6 +65,7 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
 
   locating = true;
   mapError = '';
+  locationError = '';
   distanceMeters?: number;
   durationSeconds?: number;
   nextInstruction = '';
@@ -68,7 +74,7 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   private map?: MapboxMap;
   private driverMarker?: Marker;
   private siteMarker?: Marker;
-  private watchId?: number;
+  private watchId = '';
   private resizeObserver?: ResizeObserver;
   private directionsRequest?: AbortController;
   private lastRoutedPoint?: [number, number];
@@ -78,7 +84,13 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   private routeCoordinates: [number, number][] = [];
   latestPosition?: { latitude:number; longitude:number; accuracyMeters:number };
 
-  constructor(readonly state: DriverStateService, private readonly zone: NgZone, private readonly cdr: ChangeDetectorRef, private readonly router: Router) {}
+  constructor(
+    readonly state: DriverStateService,
+    private readonly geo: DriverGeolocationService,
+    private readonly zone: NgZone,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly router: Router,
+  ) {}
 
   get statusLabel(): string {
     const value = this.state.selectedJob()?.status || 'assigned';
@@ -104,9 +116,11 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   }
 
   async ngAfterViewInit(): Promise<void> {
+    this.startLocationWatch();
+
     const destination = this.destination();
-    if (!environment.mapboxAccessToken) { this.mapError = 'Mapbox access token is not configured.'; this.locating = false; return; }
-    if (!destination) { this.mapError = 'The customer site does not have a map location.'; this.locating = false; return; }
+    if (!environment.mapboxAccessToken) { this.mapError = 'Mapbox access token is not configured.'; return; }
+    if (!destination) { this.mapError = 'The customer site does not have a map location.'; return; }
 
     const mapboxgl = await import('mapbox-gl/esm');
     this.mapbox = mapboxgl;
@@ -124,7 +138,7 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
     this.map.on('load', () => this.zone.run(() => {
       this.ready = true;
       this.addSiteMarker(destination);
-      this.startLocationWatch();
+      if (this.latestPosition) this.placeDriverOnMap(this.latestPosition);
     }));
     this.map.on('render', () => this.updatePlannedRouteOverlay());
     this.map.on('error', event => this.zone.run(() => {
@@ -135,36 +149,50 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.watchId != null) navigator.geolocation.clearWatch(this.watchId);
+    void this.geo.clearWatch(this.watchId);
     this.directionsRequest?.abort();
     this.resizeObserver?.disconnect();
     this.map?.remove();
   }
 
-  private startLocationWatch(): void {
-    if (!navigator.geolocation) { this.locating = false; this.mapError = 'Location is unavailable on this device.'; return; }
-    this.watchId = navigator.geolocation.watchPosition(
-      position => this.zone.run(() => this.updatePosition(position)),
-      error => this.zone.run(() => { this.locating = false; this.mapError = error.message || 'Location permission is required for navigation.'; this.cdr.detectChanges(); }),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
-    );
+  retryLocation(): void {
+    this.locationError = '';
+    this.locating = true;
+    this.startLocationWatch();
   }
 
-  private updatePosition(position: GeolocationPosition): void {
-    if (!this.map || !this.mapbox || !this.ready) return;
-    const point: [number, number] = [position.coords.longitude, position.coords.latitude];
-    this.latestPosition = { latitude:position.coords.latitude, longitude:position.coords.longitude, accuracyMeters:position.coords.accuracy };
+  private startLocationWatch(): void {
+    void this.geo.clearWatch(this.watchId).then(() => {
+      void this.geo.watchPosition(
+        position => this.zone.run(() => this.updatePosition(position)),
+        message => this.zone.run(() => {
+          this.locating = false;
+          this.locationError = message;
+          this.cdr.detectChanges();
+        }),
+      ).then(id => { this.watchId = id; });
+    });
+  }
+
+  private updatePosition(position: DriverPosition): void {
+    this.latestPosition = position;
     this.locating = false;
-    this.mapError = '';
+    this.locationError = '';
+    this.cdr.detectChanges();
+    this.placeDriverOnMap(position);
+    void this.updateRouteIfNeeded([position.longitude, position.latitude]);
+  }
+
+  private placeDriverOnMap(location: { latitude:number; longitude:number }): void {
+    if (!this.map || !this.mapbox || !this.ready) return;
+    const point: [number, number] = [location.longitude, location.latitude];
     if (!this.driverMarker) {
       this.driverMarker = new this.mapbox.Marker({ element: markerElement('truck') })
         .setLngLat(point).setPopup(new this.mapbox.Popup({ offset: 24 }).setText('Your location')).addTo(this.map);
     } else this.driverMarker.setLngLat(point);
 
-    if (this.fittedRoute) this.map.easeTo({ center: point, zoom: Math.max(this.map.getZoom(), 15), bearing: position.coords.heading ?? this.map.getBearing(), duration: 600 });
+    if (this.fittedRoute) this.map.easeTo({ center: point, zoom: Math.max(this.map.getZoom(), 15), duration: 600 });
     else this.map.easeTo({ center:point, zoom:14, duration:400 });
-    this.cdr.detectChanges();
-    void this.updateRouteIfNeeded(point);
   }
 
   openArrival(): void {

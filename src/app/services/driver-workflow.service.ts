@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { AlertController } from '@ionic/angular/standalone';
 import { firstValueFrom } from 'rxjs';
 import { DriverApiService, DriverShift, DriverVehicle } from './driver-api.service';
+import { DriverGeolocationService } from './driver-geolocation.service';
 import { DriverStateService } from './driver-state.service';
 import { ToastService } from './toast.service';
 
@@ -9,6 +10,7 @@ import { ToastService } from './toast.service';
 export class DriverWorkflowService {
   private readonly api = inject(DriverApiService);
   private readonly state = inject(DriverStateService);
+  private readonly geo = inject(DriverGeolocationService);
   private readonly alerts = inject(AlertController);
   private readonly toast = inject(ToastService);
 
@@ -58,13 +60,12 @@ export class DriverWorkflowService {
     return started;
   }
 
-  private captureLocation(): Promise<{ latitude:number; longitude:number; accuracyMeters:number } | null> {
-    if (!navigator.geolocation) return Promise.resolve(null);
-    return new Promise(resolve => navigator.geolocation.getCurrentPosition(
-      position => resolve({ latitude:position.coords.latitude, longitude:position.coords.longitude, accuracyMeters:position.coords.accuracy }),
-      () => resolve(null),
-      { enableHighAccuracy:true, timeout:10000, maximumAge:30000 },
-    ));
+  private async captureLocation(): Promise<{ latitude:number; longitude:number; accuracyMeters:number } | null> {
+    try {
+      return await this.geo.getCurrentPosition();
+    } catch {
+      return null;
+    }
   }
 
   async selectAssignedVehicle(): Promise<boolean> {

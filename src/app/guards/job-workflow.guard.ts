@@ -35,7 +35,10 @@ export const jobWorkflowGuard: CanActivateFn = async (route: ActivatedRouteSnaps
   const allowed = (route.data['statuses'] as string[] | undefined) ?? [];
   if (allowed.length) {
     if (allowed.includes(job.status)) return true;
-    if (job.status === 'completed') return router.createUrlTree(['/history']);
+    if (job.status === 'completed') {
+      if (state.isJobPendingSync(jobId)) return router.createUrlTree(['/jobs']);
+      return router.createUrlTree(['/history']);
+    }
     if (job.status === 'cancelled') return router.createUrlTree(['/jobs', job.id]);
     return router.createUrlTree(['/jobs', job.id, resolveTarget(job.status, state)]);
   }

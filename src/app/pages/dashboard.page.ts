@@ -139,7 +139,10 @@ import { LoaderComponent } from '../shared/loader.component';
     <section class="panel delivery-panel" [class.clickable]="!!displayedJob()" [routerLink]="displayedJob() ? ['/jobs', displayedJob()!.id] : null">
       <div class="section-heading">
         <h2>{{ activeJob() ? 'Active job' : 'Next delivery' }}</h2>
-        <a routerLink="/jobs" (click)="$event.stopPropagation()">View all</a>
+        <div class="heading-links">
+          <a routerLink="/jobs" (click)="$event.stopPropagation()">View all</a>
+          <a routerLink="/history" (click)="$event.stopPropagation()">History</a>
+        </div>
       </div>
       @if (displayedJob(); as job) {
         <div class="job-identity">
@@ -244,6 +247,7 @@ import { LoaderComponent } from '../shared/loader.component';
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
     .section-heading h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
     .section-heading a { color: #f21d2f; font-size: 13px; font-weight: 750; text-decoration: none; }
+    .heading-links { display: flex; gap: 14px; }
     .job-identity { display: grid; grid-template-columns: 48px 1fr 22px; align-items: center; gap: 13px; }
     .job-sequence { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: #f21d2f; color: #fff; font-size: 24px; font-weight: 700; }
     .job-identity div:nth-child(2) { min-width: 0; }

@@ -1,6 +1,7 @@
 import { ChangeDetectorRef, Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, IonButton, IonCard, IonCardContent, IonCheckbox, IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone';
+import { DriverGeolocationService } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { ToastService } from '../services/toast.service';
 import { ArrivalLocationMapComponent } from '../shared/arrival-location-map.component';
@@ -44,6 +45,7 @@ export class ArrivalPage {
 
   constructor(
     readonly state: DriverStateService,
+    private readonly geo: DriverGeolocationService,
     private readonly router: Router,
     private readonly toast: ToastService,
     private readonly alerts: AlertController,
@@ -61,18 +63,16 @@ export class ArrivalPage {
       this.cdr.detectChanges();
       return;
     }
-    if (!navigator.geolocation) { this.locationStatus = 'Location is unavailable on this device.'; return; }
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        this.latitude = position.coords.latitude;
-        this.longitude = position.coords.longitude;
-        this.accuracy = position.coords.accuracy;
-        this.locationStatus = `GPS captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;
-        this.cdr.detectChanges();
-      },
-      () => { this.locationStatus = 'Location permission is required to confirm arrival.'; this.cdr.detectChanges(); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
-    );
+    void this.geo.getCurrentPosition().then(position => {
+      this.latitude = position.latitude;
+      this.longitude = position.longitude;
+      this.accuracy = position.accuracyMeters;
+      this.locationStatus = `GPS captured with approximately ${Math.round(position.accuracyMeters)} m accuracy.`;
+      this.cdr.detectChanges();
+    }).catch(error => {
+      this.locationStatus = this.geo.friendlyError((error as Error).message);
+      this.cdr.detectChanges();
+    });
   }
 
   get canArrive(): boolean { return this.positioned && this.contactNotified && this.hazardsChecked && this.latitude != null && this.longitude != null && !!this.accuracy; }

@@ -32,10 +32,10 @@ export interface RefreshRequest { complete: () => void; }
             <button *ngIf="refreshable" type="button" class="top-icon refresh-action" [class.refreshing]="refreshing()" [disabled]="refreshing()" (click)="requestHeaderRefresh()" aria-label="Refresh page">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8 8 0 1 0 2 5.3"/><path d="M20 4v7h-7"/></svg>
             </button>
-            <button *ngIf="showNetwork" class="network-pill" [class.icon-only]="networkIconOnly" [class.offline]="!connectivity.online()" (click)="connectivity.toggleDemoState()">
+            <span *ngIf="showNetwork" class="network-pill" [class.icon-only]="networkIconOnly" [class.offline]="!connectivity.online()" aria-live="polite">
               <ion-icon [name]="connectivity.online() ? 'wifi-outline' : 'cloud-offline-outline'"></ion-icon>
               <span class="network-pill-label">{{ connectivity.online() ? 'Online' : 'Offline' }}</span>
-            </button>
+            </span>
             <button
               type="button"
               class="theme-toggle"
@@ -62,6 +62,7 @@ export interface RefreshRequest { complete: () => void; }
         <nav class="bottom-nav" *ngIf="showNav">
           <a routerLink="/dashboard" routerLinkActive="active"><ion-icon name="home-outline"></ion-icon><span>Home</span></a>
           <a routerLink="/jobs" routerLinkActive="active"><ion-icon name="briefcase-outline"></ion-icon><span>Jobs</span></a>
+          <a routerLink="/history" routerLinkActive="active"><ion-icon name="checkmark-circle-outline"></ion-icon><span>History</span></a>
           <a routerLink="/hours" routerLinkActive="active"><ion-icon name="time-outline"></ion-icon><span>Hours</span></a>
           <a routerLink="/profile" routerLinkActive="active"><ion-icon name="person-outline"></ion-icon><span>Profile</span></a>
         </nav>
@@ -93,7 +94,7 @@ export interface RefreshRequest { complete: () => void; }
     .theme-toggle__icon--moon { position: absolute; opacity: 0; transform: rotate(90deg) scale(0); }
     :host-context(html.dark) .theme-toggle__icon--sun { opacity: 0; transform: rotate(-90deg) scale(0); }
     :host-context(html.dark) .theme-toggle__icon--moon { opacity: 1; transform: rotate(0) scale(1); }
-    .bottom-nav { position: fixed; z-index: 25; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 24px), 680px); height: 72px; border-radius: 22px; background: color-mix(in srgb, var(--wf-surface) 96%, transparent); backdrop-filter: blur(18px); box-shadow: 0 16px 42px rgba(0,0,0,.18); border: 1px solid var(--wf-border); display: grid; grid-template-columns: repeat(4,1fr); padding: 7px; }
+    .bottom-nav { position: fixed; z-index: 25; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 24px), 680px); height: 72px; border-radius: 22px; background: color-mix(in srgb, var(--wf-surface) 96%, transparent); backdrop-filter: blur(18px); box-shadow: 0 16px 42px rgba(0,0,0,.18); border: 1px solid var(--wf-border); display: grid; grid-template-columns: repeat(5,1fr); padding: 7px; }
     .bottom-nav a { color: var(--wf-muted); text-decoration: none; display: grid; place-items: center; align-content: center; gap: 4px; border-radius: 15px; font-size: 11px; font-weight: 800; }
     .bottom-nav ion-icon { font-size: 21px; }
     .bottom-nav a.active { color: var(--wf-primary); background: var(--wf-primary-soft); }

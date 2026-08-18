@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
+import { ConnectivityService } from '../services/connectivity.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
@@ -36,25 +37,27 @@ import { ToastService } from '../services/toast.service';
         </div>
       </ion-card-content>
     </ion-card>
-    <ion-card class="wf-card warning-card"><ion-card-content><strong>Internet connection required</strong><p class="caption" style="margin:6px 0 0">This delivery is submitted directly to the server — an internet connection is needed to complete it.</p></ion-card-content></ion-card>
-    <ion-button class="wf-button" color="tertiary" expand="block" (click)="complete()">Complete job and sync</ion-button>
+    @if (connectivity.online()) {
+      <ion-card class="wf-card soft-card"><ion-card-content><strong>Complete and sync</strong><p class="caption" style="margin:6px 0 0">Your delivery will be submitted to the server now.</p></ion-card-content></ion-card>
+    } @else {
+      <ion-card class="wf-card warning-card"><ion-card-content><strong>Offline — saved on device</strong><p class="caption" style="margin:6px 0 0">Complete this job locally. Everything will sync automatically when you reconnect.</p></ion-card-content></ion-card>
+    }
+    <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy()" (click)="complete()">
+      {{ connectivity.online() ? 'Complete job and sync' : 'Complete job offline' }}
+    </ion-button>
   </main>
 </wf-mobile-shell>
   `
 })
 export class DeliverySummaryPage {
-  constructor(
-    readonly state: DriverStateService,
-    private readonly router: Router,
-    private readonly toast: ToastService,
-  ) {}
+  readonly state = inject(DriverStateService);
+  readonly connectivity = inject(ConnectivityService);
+  private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
+
   async complete(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
-    // The server rejects a delivery.completed event whose gallons don't match the totalizer
-    // difference — re-check that here (using the exact value about to be sent, no fallback
-    // substitution) instead of trusting a validation that ran on an earlier screen the driver
-    // may have skipped past on resume (see job_details.page.ts's proof_submitted shortcut).
     const deliveredGallons = this.state.deliveredGallons();
     if (!deliveredGallons) {
       void this.toast.error('Delivered volume was not captured. Go back to fueling and re-enter it.');
@@ -82,6 +85,11 @@ export class DeliverySummaryPage {
     if (!ok) {
       void this.toast.error(this.state.syncError() || 'The delivery could not be completed.');
       return;
+    }
+    if (this.state.pendingSync()) {
+      void this.toast.success('Delivery saved on device. It will sync when you are back online.');
+    } else {
+      void this.toast.success('Delivery completed and synced.');
     }
     void this.router.navigateByUrl('/jobs');
   }

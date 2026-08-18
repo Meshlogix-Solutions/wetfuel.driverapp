@@ -45,6 +45,8 @@ import { DriverAuthService } from '../services/driver-auth.service';
     </ion-card>
 
     <ion-list inset="true">
+      <ion-item button routerLink="/history"><ion-icon name="checkmark-circle-outline" slot="start"></ion-icon><ion-label><h3>Delivery history</h3><p>Completed jobs and pending sync</p></ion-label></ion-item>
+      <ion-item button routerLink="/hours"><ion-icon name="time-outline" slot="start"></ion-icon><ion-label>Hours and shifts</ion-label></ion-item>
       <ion-item button routerLink="/active-shift"><ion-icon name="truck-outline" slot="start"></ion-icon><ion-label><h3>Assigned vehicles</h3><p>{{ vehicleLabel() }}</p></ion-label></ion-item>
       <ion-item button><ion-icon name="notifications-outline" slot="start"></ion-icon><ion-label>Notification preferences</ion-label></ion-item>
       <ion-item button><ion-icon name="help-circle-outline" slot="start"></ion-icon><ion-label>Help and support</ion-label></ion-item>

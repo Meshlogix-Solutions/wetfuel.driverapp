@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { DriverGeolocationService } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { ToastService } from '../services/toast.service';
 
@@ -35,16 +36,21 @@ import { ToastService } from '../services/toast.service';
 })
 export class ClockInPage {
   latitude?:number;longitude?:number;accuracyMeters?:number;locationCaptured=false;locationStatus='Location will be requested when you clock in.';
-  constructor(private readonly state: DriverStateService, private readonly router: Router, private readonly toast: ToastService, private readonly alerts: AlertController) {}
+  constructor(private readonly state: DriverStateService, private readonly geo: DriverGeolocationService, private readonly router: Router, private readonly toast: ToastService, private readonly alerts: AlertController) {}
   get currentTime():string{return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
   clockIn(): void {
-    if(!navigator.geolocation){this.locationStatus='Location is unavailable on this device.';void this.toast.error(this.locationStatus);return;}
     this.locationStatus='Capturing location...';
-    navigator.geolocation.getCurrentPosition(
-      position=>{this.latitude=position.coords.latitude;this.longitude=position.coords.longitude;this.accuracyMeters=position.coords.accuracy;this.locationCaptured=true;this.locationStatus=`Captured with approximately ${Math.round(position.coords.accuracy)} m accuracy.`;void this.finishClockIn();},
-      ()=>{this.locationStatus='Location permission is required to clock in.';void this.toast.error(this.locationStatus);},
-      {enableHighAccuracy:true,timeout:10000,maximumAge:30000},
-    );
+    void this.geo.getCurrentPosition().then(position => {
+      this.latitude=position.latitude;
+      this.longitude=position.longitude;
+      this.accuracyMeters=position.accuracyMeters;
+      this.locationCaptured=true;
+      this.locationStatus=`Captured with approximately ${Math.round(position.accuracyMeters)} m accuracy.`;
+      void this.finishClockIn();
+    }).catch(error => {
+      this.locationStatus=this.geo.friendlyError((error as Error).message);
+      void this.toast.error(this.locationStatus);
+    });
   }
   private async finishClockIn():Promise<void>{
     let clockedIn=await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters);

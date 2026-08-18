@@ -4,6 +4,7 @@ import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { DriverLocationTrackingService } from './services/driver-location-tracking.service';
+import { OfflineSyncService } from './services/offline-sync.service';
 import { addIcons } from 'ionicons';
 import {
   arrowBackOutline, briefcaseOutline, homeOutline, notificationsOutline,
@@ -24,9 +25,11 @@ import {
 export class AppComponent {
   private readonly router = inject(Router);
   private readonly locationTracking = inject(DriverLocationTrackingService);
+  private readonly offlineSync = inject(OfflineSyncService);
 
   constructor() {
     this.locationTracking.start();
+    this.offlineSync.startAutoSync();
     // Dashboard is the app's home screen - the hardware back button should only ever exit
     // the app from there. Everywhere else it should step back within the app, never exit,
     // regardless of how deep the current WebView history stack happens to be.

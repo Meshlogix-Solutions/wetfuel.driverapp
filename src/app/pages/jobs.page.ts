@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon, IonLabel, IonSegment, IonSegmentButton } from '@ionic/angular/standalone';
 import { DriverApiService, DriverJob } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { OfflineSyncService } from '../services/offline-sync.service';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
@@ -25,11 +26,14 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
       }
     </ion-segment>
 
-    @if (syncError()) {
-      <ion-card class="wf-card" style="border:1px solid var(--ion-color-danger)">
-        <ion-card-content>
-          <strong style="color:var(--ion-color-danger)">Sync issue</strong>
-          <p class="caption" style="margin:4px 0 0">{{ syncError() }}</p>
+    @if (pendingSyncCount) {
+      <ion-card class="wf-card warning-card" routerLink="/history">
+        <ion-card-content class="row-between">
+          <div>
+            <strong>{{ pendingSyncCount }} job{{ pendingSyncCount === 1 ? '' : 's' }} waiting to sync</strong>
+            <p class="caption" style="margin:4px 0 0">Open delivery history to select and sync.</p>
+          </div>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
         </ion-card-content>
       </ion-card>
     }
@@ -54,7 +58,12 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
         [routerLink]="job.status === 'completed' ? '/history' : ['/jobs', job.id]">
         <ion-card-content>
           <div class="row-between">
-            <span class="pill" [ngClass]="statusClass(job.status)">{{ statusLabel(job.status) }}</span>
+            <div class="row-between" style="gap:8px;align-items:center">
+              <span class="pill" [ngClass]="statusClass(job.status)">{{ statusLabel(job.status) }}</span>
+              @if (isPendingSync(job.id)) {
+                <span class="pill warning">Pending sync</span>
+              }
+            </div>
             <strong>{{ job.jobNumber }}</strong>
           </div>
           <h3>{{ job.customerName }}</h3>
@@ -122,11 +131,27 @@ export class JobsPage {
 
   private readonly api = inject(DriverApiService);
   private readonly state = inject(DriverStateService);
-  readonly syncError = this.state.syncError;
+  private readonly offlineSync = inject(OfflineSyncService);
   readonly jobs = signal<DriverJob[]>([]);
 
   ionViewWillEnter(): void {
-    this.api.getJobs().subscribe({ next: jobs => this.jobs.set(jobs) });
+    void this.offlineSync.refreshPendingJobs();
+    this.api.getJobs().subscribe({
+      next: jobs => {
+        void this.state.mergeJobsWithLocal(jobs).then(merged => this.jobs.set(merged));
+      },
+      error: () => {
+        void this.state.mergeJobsWithLocal([]).then(merged => this.jobs.set(merged));
+      },
+    });
+  }
+
+  isPendingSync(jobId: string): boolean {
+    return this.state.isJobPendingSync(jobId);
+  }
+
+  get pendingSyncCount(): number {
+    return this.sortedJobs.filter(job => this.isPendingSync(job.id)).length;
   }
 
   get visibleJobs() {

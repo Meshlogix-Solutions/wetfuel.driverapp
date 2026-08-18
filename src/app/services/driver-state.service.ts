@@ -8,6 +8,14 @@ import {
   OfflineDriverEvent,
 } from './driver-api.service';
 import { ConnectivityService } from './connectivity.service';
+import {
+  isPendingUploadUrl,
+  LocalJobRecord,
+  OfflineStoreService,
+  PENDING_UPLOAD_PREFIX,
+  pendingUploadId,
+} from './offline-store.service';
+import { OfflineSyncService } from './offline-sync.service';
 
 interface DeliveryDraft {
   startingTotalizer?: number;
@@ -30,17 +38,39 @@ export interface PendingArrivalLocation {
 
 const EMPTY_DRAFT: DeliveryDraft = { meterPhotoCaptured: false, equipmentPhotoCaptured: false };
 
-// Every screen fetches exactly the data it needs itself (via DriverApiService) instead of
-// one bootstrap-everything call. This service is left holding only two kinds of things:
-// (1) plain action/mutation passthroughs to the server, and (2) small bits of state that
-// genuinely span multiple screens mid-workflow (the job currently open, the vehicle picked
-// during today's clock-in flow, in-progress delivery-proof entries) - not cached copies of
-// server data that belongs to one particular page.
+const STATUS_RANK: Record<string, number> = {
+  assigned: 0,
+  started: 1,
+  arrived: 2,
+  equipment_verified: 3,
+  fueled: 4,
+  proof_submitted: 5,
+  completed: 6,
+};
+
+const OFFLINE_CAPABLE_EVENTS = new Set([
+  'job.arrived',
+  'job.equipment_verified',
+  'job.fueled',
+  'job.proof_submitted',
+  'delivery.completed',
+]);
+
+const STATUS_FROM_EVENT: Record<string, string> = {
+  'job.arrived': 'arrived',
+  'job.equipment_verified': 'equipment_verified',
+  'job.fueled': 'fueled',
+  'job.proof_submitted': 'proof_submitted',
+  'delivery.completed': 'completed',
+};
+
 @Injectable({ providedIn: 'root' })
 export class DriverStateService {
   constructor(
     private readonly api: DriverApiService,
     private readonly connectivity: ConnectivityService,
+    private readonly store: OfflineStoreService,
+    private readonly offlineSync: OfflineSyncService,
   ) {}
 
   readonly selectedJob = signal<DriverJob | null>(null);
@@ -51,34 +81,62 @@ export class DriverStateService {
   readonly deliveryDraft = signal<DeliveryDraft>(EMPTY_DRAFT);
   readonly busy = signal(false);
   readonly syncError = signal('');
-  readonly syncWarnings = signal<Array<{ code:string; message:string }>>([]);
+  readonly syncWarnings = signal<Array<{ code: string; message: string }>>([]);
   readonly pendingArrivalLocation = signal<PendingArrivalLocation | null>(null);
   readonly lastSyncAt = signal<string | null>(null);
+  readonly pendingSync = signal(false);
+  readonly savedLocally = signal(false);
 
-  /** Fetches just this one job and makes it the current workflow job - the guard calls
-   *  this on every /jobs/:jobId navigation, so it's always fresh for whichever job the
-   *  driver is actually looking at. */
   async loadJob(jobId: string): Promise<DriverJob | null> {
-    try {
-      const job = await firstValueFrom(this.api.getJob(jobId));
-      this.selectedJob.set(job);
-      this.restoreDraft(jobId);
-      // deliveredGallons is otherwise local-only until the delivery is fully completed - if this
-      // device/session never captured it (new install, cleared storage, a different device),
-      // fall back to what the server persisted when the driver recorded fueling instead of
-      // showing 0 with no way to recover it (see fueling.page.ts's job.fueled event).
-      if (!this.deliveredGallons() && job.fueledGallons) this.deliveredGallons.set(job.fueledGallons);
-      return job;
-    } catch {
-      this.selectedJob.set(null);
-      return null;
+    const local = await this.store.getLocalJob(jobId);
+    if (this.connectivity.online()) {
+      try {
+        const serverJob = await firstValueFrom(this.api.getJob(jobId));
+        const merged = this.mergeJob(serverJob, local);
+        await this.cacheJob(merged, local?.syncStatus ?? 'synced', local?.vehicleId);
+        this.selectedJob.set(merged);
+        this.restoreDraft(jobId);
+        if (!this.deliveredGallons() && merged.fueledGallons) this.deliveredGallons.set(merged.fueledGallons);
+        this.pendingSync.set(local?.syncStatus === 'pending');
+        return merged;
+      } catch {
+        if (local) {
+          this.selectedJob.set(local.job);
+          this.restoreDraft(jobId);
+          this.pendingSync.set(local.syncStatus === 'pending');
+          return local.job;
+        }
+        this.selectedJob.set(null);
+        return null;
+      }
     }
+    if (local) {
+      this.selectedJob.set(local.job);
+      this.restoreDraft(jobId);
+      this.pendingSync.set(local.syncStatus === 'pending');
+      return local.job;
+    }
+    this.selectedJob.set(null);
+    return null;
+  }
+
+  async mergeJobsWithLocal(serverJobs: DriverJob[]): Promise<DriverJob[]> {
+    const localJobs = await this.store.getAllLocalJobs();
+    const localMap = new Map(localJobs.map(record => [record.job.id, record]));
+    const merged = serverJobs.map(job => {
+      const local = localMap.get(job.id);
+      return local ? this.mergeJob(job, local) : job;
+    });
+    for (const local of localJobs) {
+      if (local.syncStatus === 'pending' && !serverJobs.some(job => job.id === local.job.id)) {
+        merged.push(local.job);
+      }
+    }
+    return merged;
   }
 
   async clockIn(note?: string, latitude?: number, longitude?: number, accuracyMeters?: number, confirmOutsideTerritory = false): Promise<boolean> {
     const shiftId = crypto.randomUUID();
-    // A new shift always begins without carrying a vehicle choice from an older session.
-    // Vehicle selection is confirmed explicitly against the logged-in driver's assignments.
     this.selectedVehicleId.set(null);
     return this.send('shift.clock_in', { vehicleId: null, note, latitude, longitude, accuracyMeters, confirmOutsideTerritory }, shiftId);
   }
@@ -110,7 +168,29 @@ export class DriverStateService {
   async lookupEquipment(qrCode: string): Promise<DriverEquipment> {
     const job = this.selectedJob();
     if (!job) throw new Error('No selected job.');
-    const equipment = await firstValueFrom(this.api.lookupEquipment(job.id, qrCode));
+    const normalized = qrCode.trim();
+    if (this.connectivity.online()) {
+      const equipment = await firstValueFrom(this.api.lookupEquipment(job.id, normalized));
+      this.verifiedEquipment.set(equipment);
+      return equipment;
+    }
+    if (!job.equipmentQrCode || job.equipmentQrCode.toLowerCase() !== normalized.toLowerCase()) {
+      throw new Error('Equipment not found. Scan a valid equipment QR code.');
+    }
+    const equipment: DriverEquipment = {
+      id: job.equipmentId ?? job.id,
+      customerId: '',
+      customerName: job.customerName,
+      siteId: '',
+      siteName: job.siteName,
+      siteAddress: job.siteAddress,
+      name: job.equipmentName ?? 'Equipment',
+      type: job.equipmentType ?? 'tank',
+      capacityGallons: job.equipmentCapacityGallons,
+      fuelType: job.fuelType,
+      qrCode: job.equipmentQrCode,
+      status: 'active',
+    };
     this.verifiedEquipment.set(equipment);
     return equipment;
   }
@@ -141,19 +221,24 @@ export class DriverStateService {
       fueled: 'proof_submitted',
     };
     if (job && job.id === jobId) {
-      // Re-entering delivery-proof to correct photos/totalizers after already reaching
-      // proof_submitted re-submits the same transition - that's a no-op, not an error.
       if (job.status === action) return true;
       if (expected[job.status] !== action) {
         this.syncError.set(`Job cannot move from '${job.status}' to '${action}'.`);
         return false;
       }
     }
-    // Shift/vehicle prerequisites for 'started' are validated server-side (see
-    // SyncDriverAppEventsCommandHandler) - there's no reliable local cache of that to
-    // pre-check against a job opened fresh this session, so let the server's error surface.
-    if (!(await this.send(`job.${action}`, payload, jobId))) return false;
-    if (job && job.id === jobId) this.selectedJob.set({ ...job, status: action });
+    const ok = await this.send(`job.${action}`, payload, jobId);
+    if (!ok) return false;
+    if (job && job.id === jobId) {
+      const updated = { ...job, status: action };
+      if (action === 'fueled' && payload['deliveredGallons']) {
+        updated.fueledGallons = Number(payload['deliveredGallons']);
+      }
+      if (action === 'started' && payload['vehicleId']) {
+        await this.cacheJob(updated, 'synced', payload['vehicleId'] as string);
+      }
+      this.selectedJob.set(updated);
+    }
     return true;
   }
 
@@ -181,19 +266,22 @@ export class DriverStateService {
       this.syncError.set(`Job cannot move from '${job?.status ?? 'unknown'}' to 'completed'.`);
       return false;
     }
-    // The truck's inventory decrement on the server needs a real vehicleId - selectedVehicleId
-    // is only populated by this session's own clock-in/vehicle-select flow, so fall back to
-    // asking the server which vehicle is actually on the open shift (e.g. after an app restart
-    // mid-shift, where nothing in this session ever set selectedVehicleId).
-    const vehicleId = this.selectedVehicleId() ?? (await this.fetchActiveShift())?.vehicleId;
-    if (!(await this.send('delivery.completed', {
+    const local = await this.store.getLocalJob(jobId);
+    const vehicleId = this.selectedVehicleId()
+      ?? local?.vehicleId
+      ?? (await this.fetchActiveShift())?.vehicleId;
+    const queued = await this.send('delivery.completed', {
       vehicleId,
       deliveredGallons,
       ...details,
-    }, jobId))) return false;
+    }, jobId, { flushImmediately: true });
+    if (!queued) return false;
+
     this.deliveredGallons.set(deliveredGallons);
-    this.selectedJob.set({ ...job, status: 'completed' });
-    this.clearDraft(jobId);
+    const completed = { ...job, status: 'completed' };
+    this.selectedJob.set(completed);
+    await this.cacheJob(completed, this.pendingSync() ? 'pending' : 'synced', vehicleId ?? undefined);
+    if (!this.pendingSync()) this.clearDraft(jobId);
     return true;
   }
 
@@ -208,12 +296,42 @@ export class DriverStateService {
     this.persistDraft(draft);
   }
 
-  async uploadEvidence(file: File): Promise<string> {
-    return await firstValueFrom(this.api.uploadFile(file));
+  async uploadEvidence(file: File, kind?: 'meter' | 'equipment'): Promise<string> {
+    const jobId = this.selectedJob()?.id;
+    if (!jobId) throw new Error('No selected job.');
+    if (this.connectivity.online()) {
+      return await firstValueFrom(this.api.uploadFile(file));
+    }
+    if (!kind) throw new Error('Photo kind is required for offline upload.');
+    const id = crypto.randomUUID();
+    await this.store.savePendingUpload({
+      id,
+      jobId,
+      kind,
+      fileName: file.name || `${kind}.jpg`,
+      mimeType: file.type || 'image/jpeg',
+      blob: file,
+      createdAt: new Date().toISOString(),
+    });
+    return `${PENDING_UPLOAD_PREFIX}${id}`;
+  }
+
+  async resolvePhotoUrl(url: string | undefined): Promise<string> {
+    if (!url || !isPendingUploadUrl(url)) return url ?? '';
+    const upload = await this.store.getPendingUpload(pendingUploadId(url));
+    if (!upload) return '';
+    return URL.createObjectURL(upload.blob);
   }
 
   async deleteEvidence(url: string): Promise<void> {
-    if (url) await firstValueFrom(this.api.deleteUploadedFile(url));
+    if (!url) return;
+    if (isPendingUploadUrl(url)) {
+      await this.store.deletePendingUpload(pendingUploadId(url));
+      return;
+    }
+    if (this.connectivity.online()) {
+      await firstValueFrom(this.api.deleteUploadedFile(url));
+    }
   }
 
   async reportIncident(payload: {
@@ -233,6 +351,32 @@ export class DriverStateService {
     return [vehicle.name, vehicle.make, vehicle.model].filter(Boolean).join(' · ');
   }
 
+  isJobPendingSync(jobId: string): boolean {
+    return this.offlineSync.pendingJobIds().includes(jobId);
+  }
+
+  private mergeJob(serverJob: DriverJob, local: LocalJobRecord | null): DriverJob {
+    if (!local) return serverJob;
+    const serverRank = STATUS_RANK[serverJob.status] ?? 0;
+    const localRank = STATUS_RANK[local.job.status] ?? 0;
+    if (local.syncStatus === 'pending' && localRank > serverRank) return local.job;
+    return serverJob;
+  }
+
+  private async cacheJob(job: DriverJob, syncStatus: 'synced' | 'pending', vehicleId?: string): Promise<void> {
+    const existing = await this.store.getLocalJob(job.id);
+    await this.store.saveLocalJob({
+      job,
+      syncStatus,
+      vehicleId: vehicleId ?? existing?.vehicleId,
+      updatedAt: new Date().toISOString(),
+    });
+    if (syncStatus === 'pending') {
+      this.pendingSync.set(true);
+      await this.offlineSync.refreshPendingJobs();
+    }
+  }
+
   private async fetchActiveShift() {
     try {
       return await firstValueFrom(this.api.getActiveShift());
@@ -241,11 +385,6 @@ export class DriverStateService {
     }
   }
 
-  // Delivery-proof photos/totalizers/notes are entered over several steps and screens - without
-  // persisting past just the in-memory signal, a reload (or the OS backgrounding/killing the
-  // PWA) wipes already-uploaded photos from the UI even though the files are still on the
-  // server, and forces the driver to redo the whole proof step. Key by job id so drivers with
-  // multiple jobs don't see one job's draft bleed into another's.
   private draftStorageKey(jobId: string): string {
     return `driver_delivery_draft:${jobId}`;
   }
@@ -267,24 +406,75 @@ export class DriverStateService {
     localStorage.removeItem(this.draftStorageKey(jobId));
   }
 
-  /** Sends a single event to the server immediately and waits for confirmation.
-   *  Returns false (and sets syncError) instead of throwing, so callers can just
-   *  check the result rather than wrapping every call in try/catch. */
-  private async send(eventType: string, payload: Record<string, unknown>, aggregateId?: string): Promise<boolean> {
-    if (!this.connectivity.online()) {
+  private async send(
+    eventType: string,
+    payload: Record<string, unknown>,
+    aggregateId?: string,
+    options?: { flushImmediately?: boolean },
+  ): Promise<boolean> {
+    const offlineCapable = OFFLINE_CAPABLE_EVENTS.has(eventType);
+    if (!offlineCapable && !this.connectivity.online()) {
       this.syncError.set('You are offline. Connect to the internet and try again.');
       return false;
     }
+
+    const finalPayload = eventType === 'job.arrived' && !this.connectivity.online()
+      ? { ...payload, confirmOutsideTerritory: true }
+      : payload;
+
     const event: OfflineDriverEvent = {
       clientEventId: crypto.randomUUID(),
       eventType,
       aggregateId,
       occurredAt: new Date().toISOString(),
-      payload,
+      payload: finalPayload,
     };
+
+    if (offlineCapable) {
+      await this.store.enqueueEvent(event);
+      this.savedLocally.set(true);
+      this.syncError.set('');
+      const newStatus = STATUS_FROM_EVENT[eventType];
+      if (newStatus && aggregateId) {
+        const job = this.selectedJob();
+        if (job && job.id === aggregateId) {
+          const updated = { ...job, status: newStatus };
+          if (eventType === 'job.fueled' && payload['deliveredGallons']) {
+            updated.fueledGallons = Number(payload['deliveredGallons']);
+          }
+          await this.cacheJob(updated, 'pending', payload['vehicleId'] as string | undefined);
+          this.selectedJob.set(updated);
+        }
+      }
+    }
+
+    if (!this.connectivity.online()) {
+      this.pendingSync.set(true);
+      await this.offlineSync.refreshPendingJobs();
+      return offlineCapable;
+    }
+
     this.busy.set(true);
     this.syncWarnings.set([]);
     try {
+      if (offlineCapable && aggregateId) {
+        const result = await this.offlineSync.flushJob(aggregateId);
+        this.lastSyncAt.set(new Date().toISOString());
+        this.syncWarnings.set(result.warnings.map(({ code, message }) => ({ code, message })));
+        if (!result.success) {
+          this.syncError.set(result.error ?? 'Sync failed. Your work is saved and will retry when online.');
+          this.pendingSync.set(true);
+          await this.offlineSync.refreshPendingJobs();
+          if (this.offlineSync.isArrivalGeofenceError(result.error)) return false;
+          return options?.flushImmediately ? offlineCapable : true;
+        }
+        this.pendingSync.set(false);
+        this.savedLocally.set(false);
+        this.syncError.set('');
+        if (options?.flushImmediately && aggregateId) this.clearDraft(aggregateId);
+        return true;
+      }
+
       const result = await firstValueFrom(this.api.sync([event]));
       this.lastSyncAt.set(result.serverTime);
       this.syncWarnings.set((result.warnings ?? [])
@@ -294,7 +484,14 @@ export class DriverStateService {
       return true;
     } catch (error: unknown) {
       const failure = error as { error?: { message?: string }; message?: string };
-      this.syncError.set(failure.error?.message ?? failure.message ?? 'The request could not be completed.');
+      const message = failure.error?.message ?? failure.message ?? 'The request could not be completed.';
+      if (offlineCapable) {
+        this.syncError.set('');
+        this.pendingSync.set(true);
+        await this.offlineSync.refreshPendingJobs();
+        return true;
+      }
+      this.syncError.set(message);
       return false;
     } finally {
       this.busy.set(false);
