@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonCard, IonCardContent, IonIcon, IonButton } from '@ionic/angular/standalone';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
 import { ConnectivityService } from '../services/connectivity.service';
@@ -9,7 +10,7 @@ import { ToastService } from '../services/toast.service';
 @Component({
   selector: 'app-delivery-summary',
   standalone: true,
-  imports: [MobileShellComponent, IonCard, IonCardContent, IonIcon, IonButton],
+  imports: [MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonIcon, IonButton],
   template: `
 <wf-mobile-shell title="Complete delivery" subtitle="Review and submit" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/delivery-proof'">
   <main class="screen-body stack">
@@ -43,6 +44,7 @@ import { ToastService } from '../services/toast.service';
       <ion-card class="wf-card warning-card"><ion-card-content><strong>Offline — saved on device</strong><p class="caption" style="margin:6px 0 0">Complete this job locally. Everything will sync automatically when you reconnect.</p></ion-card-content></ion-card>
     }
     <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy()" (click)="complete()">
+      @if (state.busy()) { <wf-loader mode="button" /> }
       {{ connectivity.online() ? 'Complete job and sync' : 'Complete job offline' }}
     </ion-button>
   </main>

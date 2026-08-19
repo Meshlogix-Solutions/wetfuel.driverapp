@@ -8,13 +8,14 @@ import { Barcode, BarcodeFormat, BarcodeScanner, BarcodesScannedEvent } from '@c
 // implementation so scanning still works via ng serve / a plain browser tab, not just native.
 import 'barcode-detector/polyfill';
 import { DriverStateService } from '../services/driver-state.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-qr-scanner',
   standalone: true,
-  imports: [FormsModule, MobileShellComponent, IonItem, IonInput, IonButton],
+  imports: [FormsModule, MobileShellComponent, LoaderComponent, IonItem, IonInput, IonButton],
   template: `
     <wf-mobile-shell
       title="Scan equipment"
@@ -45,7 +46,10 @@ import { ToastService } from '../services/toast.service';
           <ion-button class="wf-button wf-secondary" expand="block" (click)="stopScanning()">Cancel scan</ion-button>
         }
         <ion-item><ion-input label="Enter equipment QR manually" labelPlacement="stacked" [(ngModel)]="manualCode" placeholder="WF-EQ-..."></ion-input></ion-item>
-        <ion-button class="wf-button wf-secondary" expand="block" [disabled]="loading" (click)="lookup(manualCode)">Find equipment</ion-button>
+        <ion-button class="wf-button wf-secondary" expand="block" [disabled]="loading" (click)="lookup(manualCode)">
+          @if (loading) { <wf-loader mode="button" /> }
+          {{ loading ? 'Finding equipment...' : 'Find equipment' }}
+        </ion-button>
       </main>
     </wf-mobile-shell>
   `,

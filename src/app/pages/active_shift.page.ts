@@ -5,15 +5,19 @@ import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/stan
 import { DriverApiService, DriverJob, DriverShift } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-active-shift',
   standalone: true,
-  imports: [DatePipe, RouterLink, MobileShellComponent, IonCard, IonCardContent, IonButton, IonIcon],
+  imports: [DatePipe, RouterLink, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonButton, IonIcon],
   template: `
 <wf-mobile-shell title="Active shift" subtitle="On duty" backRoute="/dashboard">
   <main class="screen-body stack">
+    @if (loading()) {
+      <wf-loader mode="section" message="Loading shift..." />
+    } @else {
     <ion-card class="wf-card hero-card text-center"><ion-card-content><span class="pill" [class.warning]="paused()" [class.success]="!paused()">{{ paused() ? 'Paused' : 'On duty' }}</span><div style="font-size:52px;font-weight:950;letter-spacing:-.05em;margin:18px 0 5px">{{ duration }}</div><p class="caption" style="margin:0">Started {{ activeShift()?.startedAt | date:'short' }}</p></ion-card-content></ion-card>
     <section class="grid-2">
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">On-duty time</span><strong>{{ duration }}</strong><span class="caption">excluding breaks</span></ion-card-content></ion-card>
@@ -25,17 +29,19 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       @if(!vehicle()){<ion-button class="wf-button" expand="block" (click)="selectVehicle()">Select vehicle</ion-button>}
       <ion-button class="wf-button wf-secondary" expand="block" routerLink="/jobs" [disabled]="!vehicle()">Continue today's jobs</ion-button>
     </ion-card-content></ion-card>
-    <div class="grid-2"><ion-button class="wf-button wf-secondary" expand="block" (click)="togglePause()">{{ paused() ? 'Resume shift' : 'Pause shift' }}</ion-button><ion-button class="wf-button" color="danger" expand="block" (click)="clockOut()">Clock out</ion-button></div>
+    <div class="grid-2"><ion-button class="wf-button wf-secondary" expand="block" [disabled]="state.busy()" (click)="togglePause()">@if(state.busy()){<wf-loader mode="button" />}{{ paused() ? 'Resume shift' : 'Pause shift' }}</ion-button><ion-button class="wf-button" color="danger" expand="block" [disabled]="state.busy()" (click)="clockOut()">@if(state.busy()){<wf-loader mode="button" />}Clock out</ion-button></div>
+    }
   </main>
 </wf-mobile-shell>`,
 })
 export class ActiveShiftPage {
   private readonly api = inject(DriverApiService);
-  private readonly state = inject(DriverStateService);
+  readonly state = inject(DriverStateService);
   private readonly workflow = inject(DriverWorkflowService);
   private readonly router = inject(Router);
   readonly activeShift = signal<DriverShift | null>(null);
   readonly jobs = signal<DriverJob[]>([]);
+  readonly loading = signal(true);
   readonly paused = computed(() => this.activeShift()?.status === 'on_break');
   readonly vehicle = computed(() => this.activeShift()?.vehicle ?? null);
   readonly vehicleLabel = computed(() => { const v=this.vehicle(); return v ? [v.name,v.make,v.model].filter(Boolean).join(' · ') : 'No vehicle selected'; });
@@ -51,9 +57,11 @@ export class ActiveShiftPage {
   async clockOut():Promise<void>{if(await this.state.clockOut())void this.router.navigateByUrl('/dashboard');}
 
   private async loadShift(promptForVehicle=false):Promise<void>{
+    this.loading.set(true);
     const shift=await this.workflow.getActiveShift();this.activeShift.set(shift);
     if(shift?.vehicleId)this.state.selectedVehicleId.set(shift.vehicleId);
     if(promptForVehicle&&shift&&!shift.vehicleId&&await this.workflow.selectAssignedVehicle())this.activeShift.set(await this.workflow.getActiveShift());
+    this.loading.set(false);
   }
   private isToday(value:string):boolean{return new Date(value).toDateString()===new Date().toDateString();}
 }

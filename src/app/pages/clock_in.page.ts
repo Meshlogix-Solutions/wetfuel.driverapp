@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AlertController, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverGeolocationService } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
@@ -9,7 +10,7 @@ import { ToastService } from '../services/toast.service';
 @Component({
   selector: 'app-clock-in',
   standalone: true,
-  imports: [MobileShellComponent, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon],
+  imports: [MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon],
   template: `
 <wf-mobile-shell title="Clock in" subtitle="Shift setup" backRoute="/dashboard">
   <main class="screen-body stack">
@@ -28,17 +29,22 @@ import { ToastService } from '../services/toast.service';
         <ion-item><ion-input label="Optional shift note" labelPlacement="stacked" placeholder="Example: Picking up Truck 14"></ion-input></ion-item>
       </ion-card-content>
     </ion-card>
-    <ion-button class="wf-button" color="tertiary" expand="block" (click)="clockIn()">Confirm clock in · {{ currentTime }}</ion-button>
+    <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="submitting || state.busy()" (click)="clockIn()">
+      @if (submitting || state.busy()) { <wf-loader mode="button" /> }
+      {{ submitting ? 'Clocking in...' : 'Confirm clock in · ' + currentTime }}
+    </ion-button>
     <p class="caption text-center">Your GPS location and time will be recorded for compliance.</p>
   </main>
 </wf-mobile-shell>
   `
 })
 export class ClockInPage {
-  latitude?:number;longitude?:number;accuracyMeters?:number;locationCaptured=false;locationStatus='Location will be requested when you clock in.';
-  constructor(private readonly state: DriverStateService, private readonly geo: DriverGeolocationService, private readonly router: Router, private readonly toast: ToastService, private readonly alerts: AlertController) {}
+  latitude?:number;longitude?:number;accuracyMeters?:number;locationCaptured=false;locationStatus='Location will be requested when you clock in.';submitting=false;
+  constructor(readonly state: DriverStateService, private readonly geo: DriverGeolocationService, private readonly router: Router, private readonly toast: ToastService, private readonly alerts: AlertController) {}
   get currentTime():string{return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
   clockIn(): void {
+    if (this.submitting) return;
+    this.submitting = true;
     this.locationStatus='Capturing location...';
     void this.geo.getCurrentPosition().then(position => {
       this.latitude=position.latitude;
@@ -48,6 +54,7 @@ export class ClockInPage {
       this.locationStatus=`Captured with approximately ${Math.round(position.accuracyMeters)} m accuracy.`;
       void this.finishClockIn();
     }).catch(error => {
+      this.submitting = false;
       this.locationStatus=this.geo.friendlyError((error as Error).message);
       void this.toast.error(this.locationStatus);
     });
@@ -62,9 +69,10 @@ export class ClockInPage {
       });
       await alert.present();
       const result=await alert.onDidDismiss();
-      if(result.role!=='confirm')return;
+      if(result.role!=='confirm'){ this.submitting=false; return; }
       clockedIn=await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters,true);
     }
+    this.submitting=false;
     if(clockedIn){
       const warning=this.state.syncWarnings()[0];
       if(warning)await this.toast.warning(warning.message);

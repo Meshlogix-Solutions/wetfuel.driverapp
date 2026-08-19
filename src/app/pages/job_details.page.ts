@@ -6,14 +6,18 @@ import { firstValueFrom } from 'rxjs';
 import { DriverApiService, DriverJob, DriverShift } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector:'app-job-details',standalone:true,
-  imports:[CommonModule,MobileShellComponent,IonCard,IonCardContent,IonButton,IonIcon],
+  imports:[CommonModule,MobileShellComponent,LoaderComponent,IonCard,IonCardContent,IonButton,IonIcon],
   template:`
 <wf-mobile-shell [title]="'Job '+(state.selectedJob()?.jobNumber??'')" [subtitle]="statusLabel" backRoute="/jobs" [showNav]="true">
   <main class="screen-body stack job-detail-body">
+    @if (requirementsLoading()) {
+      <wf-loader mode="section" message="Loading job..." />
+    } @else {
     <ion-card class="wf-card hero-card"><ion-card-content><span class="pill dark">Scheduled · {{state.selectedJob()?.scheduledAt|date:'short'}}</span><h1 style="margin:16px 0 5px;font-size:28px">{{state.selectedJob()?.customerName}}</h1><p class="caption" style="margin:0">{{state.selectedJob()?.siteAddress}}</p></ion-card-content></ion-card>
     <section class="job-metrics"><ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Target</span><strong>{{state.selectedJob()?.targetGallons??0}}</strong><span class="caption">gallons</span></ion-card-content></ion-card><ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Fuel</span><strong>{{fuelLabel}}</strong><span class="caption">Fuel type</span></ion-card-content></ion-card><ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Equipment</span><strong>{{state.selectedJob()?.equipmentCode??'—'}}</strong><span class="caption">{{state.selectedJob()?.equipmentType??'Equipment'}}</span></ion-card-content></ion-card></section>
 
@@ -23,8 +27,8 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 
     @if(!requirementsLoading()&&needsAction&&!blockedByOtherActiveJob){
       <ion-card class="wf-card warning-card"><ion-card-content class="stack"><div><strong>Action required</strong><p class="caption" style="margin:6px 0 0">{{!activeShift()?'Start your shift before beginning this job.':'Select an assigned vehicle before beginning this job.'}}</p></div>
-      @if(!activeShift()){<ion-button class="wf-button" expand="block" [disabled]="state.busy()" (click)="startShift()">Start shift</ion-button>}
-      @if(activeShift()&&!activeShift()?.vehicleId){<ion-button class="wf-button" expand="block" [disabled]="state.busy()" (click)="selectVehicle()">Select vehicle</ion-button>}
+      @if(!activeShift()){<ion-button class="wf-button" expand="block" [disabled]="state.busy()" (click)="startShift()">@if(state.busy()){<wf-loader mode="button" />}Start shift</ion-button>}
+      @if(activeShift()&&!activeShift()?.vehicleId){<ion-button class="wf-button" expand="block" [disabled]="state.busy()" (click)="selectVehicle()">@if(state.busy()){<wf-loader mode="button" />}Select vehicle</ion-button>}
       </ion-card-content></ion-card>
     }
 
@@ -32,8 +36,9 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
     <ion-card class="wf-card"><ion-card-content class="stack"><h2 class="section-title">Delivery instructions</h2><div class="row"><div class="icon-tile"><ion-icon name="lock-closed-outline"></ion-icon></div><div><strong>Site instructions</strong><p class="caption" style="margin:4px 0 0">{{state.selectedJob()?.deliveryInstructions||'No special delivery instructions.'}}</p></div></div><div class="row"><div class="icon-tile"><ion-icon name="camera-outline"></ion-icon></div><div><strong>Delivery proof required</strong><p class="caption" style="margin:4px 0 0">Record the meter and equipment evidence before completion.</p></div></div></ion-card-content></ion-card>
     @if(state.selectedJob()?.safetyNote){<ion-card class="wf-card warning-card"><ion-card-content><strong>Safety note</strong><p class="caption" style="margin:6px 0 0">{{state.selectedJob()?.safetyNote}}</p></ion-card-content></ion-card>}
     @if(state.syncError()){<ion-card class="wf-card danger-card"><ion-card-content><strong>Could not complete action</strong><p class="caption" style="margin:6px 0 0">{{state.syncError()}}</p></ion-card-content></ion-card>}
+    }
   </main>
-  <div class="fixed-job-action"><ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy()||(state.selectedJob()?.status==='assigned'&&(needsAction||blockedByOtherActiveJob))" (click)="continueJob()">{{actionLabel}}</ion-button></div>
+  <div class="fixed-job-action"><ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy()||requirementsLoading()||(state.selectedJob()?.status==='assigned'&&(needsAction||blockedByOtherActiveJob))" (click)="continueJob()">@if(state.busy()){<wf-loader mode="button" />}{{actionLabel}}</ion-button></div>
 </wf-mobile-shell>`,
   styles:[`
     .job-detail-body{padding-bottom:200px}.fixed-job-action{position:fixed;z-index:30;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 28px),692px);padding:10px;background:color-mix(in srgb,var(--wf-surface) 95%,transparent);border:1px solid var(--wf-border);border-radius:20px;box-shadow:0 14px 38px rgba(0,0,0,.2);backdrop-filter:blur(16px)}.fixed-job-action ion-button{margin:0}

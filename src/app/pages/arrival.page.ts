@@ -5,12 +5,13 @@ import { DriverGeolocationService } from '../services/driver-geolocation.service
 import { DriverStateService } from '../services/driver-state.service';
 import { ToastService } from '../services/toast.service';
 import { ArrivalLocationMapComponent } from '../shared/arrival-location-map.component';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-arrival',
   standalone: true,
-  imports: [MobileShellComponent, ArrivalLocationMapComponent, IonCard, IonCardContent, IonIcon, IonItem, IonCheckbox, IonLabel, IonButton],
+  imports: [MobileShellComponent, ArrivalLocationMapComponent, LoaderComponent, IonCard, IonCardContent, IonIcon, IonItem, IonCheckbox, IonLabel, IonButton],
   template: `
     <wf-mobile-shell title="Site arrival" [subtitle]="state.selectedJob()?.customerName || 'Customer site'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/route-map'" [showNav]="true">
       <main class="screen-body stack">
@@ -22,13 +23,17 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
         <ion-card class="wf-card soft-card"><ion-card-content class="row">
           <div class="icon-tile"><ion-icon name="location-outline"></ion-icon></div>
           <div><strong>Arrival location</strong><p class="caption" style="margin:4px 0 0">{{ locationStatus }}</p></div>
+          @if (latitude == null) { <wf-loader mode="button" /> }
         </ion-card-content></ion-card>
         <ion-card class="wf-card"><ion-card-content>
           <ion-item lines="full" button="true" (click)="positioned=!positioned"><ion-checkbox slot="start" [checked]="positioned" (click)="$event.stopPropagation(); positioned=!positioned"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Vehicle safely positioned</strong><p class="caption">Parking brake set and hazards activated.</p></ion-label></ion-item>
           <ion-item lines="full" button="true" (click)="contactNotified=!contactNotified"><ion-checkbox slot="start" [checked]="contactNotified" (click)="$event.stopPropagation(); contactNotified=!contactNotified"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Site contact notified</strong><p class="caption">Confirm permission to begin delivery.</p></ion-label></ion-item>
           <ion-item lines="none" button="true" (click)="hazardsChecked=!hazardsChecked"><ion-checkbox slot="start" [checked]="hazardsChecked" (click)="$event.stopPropagation(); hazardsChecked=!hazardsChecked"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Area checked for hazards</strong><p class="caption">No ignition sources, spills or obstructions.</p></ion-label></ion-item>
         </ion-card-content></ion-card>
-        <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="!canArrive" (click)="arrive()">Check in and scan equipment</ion-button>
+        <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="!canArrive || state.busy()" (click)="arrive()">
+          @if (state.busy()) { <wf-loader mode="button" /> }
+          Check in and scan equipment
+        </ion-button>
       </main>
     </wf-mobile-shell>
   `,

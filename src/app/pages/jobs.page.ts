@@ -6,6 +6,7 @@ import { IonButton, IonCard, IonCardContent, IonIcon, IonLabel, IonSegment, IonS
 import { DriverApiService, DriverJob } from '../services/driver-api.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { OfflineSyncService } from '../services/offline-sync.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
@@ -14,12 +15,15 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
   selector: 'app-jobs',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterLink, MobileShellComponent,
+    CommonModule, FormsModule, RouterLink, MobileShellComponent, LoaderComponent,
     IonSegment, IonSegmentButton, IonLabel, IonCard, IonCardContent, IonButton, IonIcon,
   ],
   template: `
 <wf-mobile-shell title="My jobs" [subtitle]="activeCount + ' active'" [showNav]="true">
   <main class="screen-body stack">
+    @if (loading() && !hasLoaded()) {
+      <wf-loader mode="section" message="Loading jobs..." />
+    } @else {
     <ion-segment class="jobs-filter" [(ngModel)]="activeFilter" scrollable>
       @for (filter of filters; track filter.key) {
         <ion-segment-button [value]="filter.key"><ion-label>{{ filter.label }}</ion-label></ion-segment-button>
@@ -94,6 +98,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
     @if (routeJob) {
       <ion-button class="wf-button wf-secondary" expand="block" [routerLink]="['/jobs', routeJob.id, 'route-map']">Continue active route</ion-button>
     }
+    }
   </main>
 </wf-mobile-shell>
   `,
@@ -133,15 +138,26 @@ export class JobsPage {
   private readonly state = inject(DriverStateService);
   private readonly offlineSync = inject(OfflineSyncService);
   readonly jobs = signal<DriverJob[]>([]);
+  readonly loading = signal(true);
+  readonly hasLoaded = signal(false);
 
   ionViewWillEnter(): void {
     void this.offlineSync.refreshPendingJobs();
+    if (!(this.loading() && this.hasLoaded())) this.loading.set(true);
     this.api.getJobs().subscribe({
       next: jobs => {
-        void this.state.mergeJobsWithLocal(jobs).then(merged => this.jobs.set(merged));
+        void this.state.mergeJobsWithLocal(jobs).then(merged => {
+          this.jobs.set(merged);
+          this.hasLoaded.set(true);
+          this.loading.set(false);
+        });
       },
       error: () => {
-        void this.state.mergeJobsWithLocal([]).then(merged => this.jobs.set(merged));
+        void this.state.mergeJobsWithLocal([]).then(merged => {
+          this.jobs.set(merged);
+          this.hasLoaded.set(true);
+          this.loading.set(false);
+        });
       },
     });
   }

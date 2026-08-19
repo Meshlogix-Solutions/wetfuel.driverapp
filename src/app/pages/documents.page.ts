@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   AlertController, IonButton, IonCard, IonCardContent, IonIcon, IonItem, IonLabel, IonList, IonSelect, IonSelectOption,
 } from '@ionic/angular/standalone';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import {
   DriverApiService,
@@ -15,7 +16,7 @@ import { ToastService } from '../services/toast.service';
   selector: 'app-documents',
   standalone: true,
   imports: [
-    DatePipe, FormsModule, MobileShellComponent,
+    DatePipe, FormsModule, MobileShellComponent, LoaderComponent,
     IonCard, IonCardContent, IonIcon, IonList, IonItem, IonLabel, IonButton,
     IonSelect, IonSelectOption,
   ],
@@ -62,9 +63,7 @@ import { ToastService } from '../services/toast.service';
         </div>
 
         @if (extracting()) {
-          <div class="wf-extract-status" role="status" aria-live="polite">
-            Reading document…
-          </div>
+          <wf-loader mode="inline" message="Reading document…" />
         }
       </ion-card-content>
     </ion-card>
@@ -130,6 +129,7 @@ import { ToastService } from '../services/toast.service';
           <div class="wf-actions">
             <ion-button class="wf-button wf-secondary" expand="block" [disabled]="busy()" (click)="cancelUpload()">Cancel</ion-button>
             <ion-button class="wf-button" expand="block" [disabled]="busy() || !selectedFile()" (click)="saveUpload()">
+              @if (busy()) { <wf-loader mode="button" /> }
               {{ busy() ? 'Uploading...' : 'Save' }}
             </ion-button>
           </div>
@@ -141,7 +141,7 @@ import { ToastService } from '../services/toast.service';
       <ion-card-content class="stack">
         <h2 class="section-title">Uploaded documents</h2>
         @if (loading()) {
-          <p class="caption">Loading…</p>
+          <wf-loader mode="section" message="Loading documents..." />
         } @else if (documents().length === 0) {
           <p class="caption">No documents uploaded yet.</p>
         } @else {

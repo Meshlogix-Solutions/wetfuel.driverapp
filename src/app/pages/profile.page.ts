@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonList, IonItem, IonLabel, IonButton, IonIcon } from '@ionic/angular/standalone';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverApiService, DriverProfile, DriverShift } from '../services/driver-api.service';
 import { DriverAuthService } from '../services/driver-auth.service';
@@ -9,10 +10,13 @@ import { DriverAuthService } from '../services/driver-auth.service';
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [RouterLink, DatePipe, MobileShellComponent, IonCard, IonCardContent, IonList, IonItem, IonLabel, IonButton, IonIcon],
+  imports: [RouterLink, DatePipe, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonList, IonItem, IonLabel, IonButton, IonIcon],
   template: `
 <wf-mobile-shell title="Driver profile" subtitle="WetFuel Dallas North" [showNav]="true">
   <main class="screen-body stack">
+    @if (!profile()) {
+      <wf-loader mode="section" message="Loading profile..." />
+    } @else {
     <ion-card class="wf-card hero-card">
       <ion-card-content class="row">
         <div class="avatar" style="width:66px;height:66px;font-size:20px;background:#fff">{{ initials }}</div>
@@ -54,6 +58,7 @@ import { DriverAuthService } from '../services/driver-auth.service';
 
     <ion-button class="wf-button wf-secondary" expand="block" (click)="logout()"><ion-icon slot="start" name="log-out-outline"></ion-icon>Sign out</ion-button>
     <p class="caption text-center">WetFuel Driver v1.0.0</p>
+    }
   </main>
 </wf-mobile-shell>
   `

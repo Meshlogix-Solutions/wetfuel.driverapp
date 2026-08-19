@@ -5,12 +5,13 @@ import type { GeoJSONSource, Map as MapboxMap, Marker } from 'mapbox-gl/esm';
 import { environment } from '../../environments/environment';
 import { DriverGeolocationService, DriverPosition } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-route-map',
   standalone: true,
-  imports: [RouterLink, MobileShellComponent, IonCard, IonCardContent, IonButton, IonIcon],
+  imports: [RouterLink, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonButton, IonIcon],
   template: `
 <wf-mobile-shell title="Navigate to site" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber || '')" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '')">
   <main class="screen-body stack">
@@ -18,7 +19,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       <div #map class="route-map__canvas"></div>
       <svg class="planned-route-overlay" aria-hidden="true"><polyline #plannedRouteLine /></svg>
       @if (mapError) { <div class="map-message map-message--error">{{ mapError }}</div> }
-      @if (locating) { <div class="map-message">Finding your current location...</div> }
+      @if (locating) { <div class="map-message"><wf-loader mode="inline" message="Finding your current location..." /></div> }
       <ion-card class="wf-card compact route-summary">
         <ion-card-content>
           <div class="row-between">
@@ -38,7 +39,10 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 
     <div class="grid-2">
       <ion-button class="wf-button wf-secondary" expand="block" [href]="mapsUrl" target="_blank" rel="noopener">Voice navigation</ion-button>
-      <ion-button class="wf-button" expand="block" [disabled]="!latestPosition" (click)="openArrival()">{{ latestPosition ? "I've arrived" : locating ? 'Getting location...' : 'Waiting for GPS' }}</ion-button>
+      <ion-button class="wf-button" expand="block" [disabled]="!latestPosition" (click)="openArrival()">
+        @if (!latestPosition && locating) { <wf-loader mode="button" /> }
+        {{ latestPosition ? "I've arrived" : locating ? 'Getting location...' : 'Waiting for GPS' }}
+      </ion-button>
     </div>
     @if (!latestPosition && locationError) {
       <p class="caption" style="color:var(--ion-color-danger);margin:0">{{ locationError }}</p>

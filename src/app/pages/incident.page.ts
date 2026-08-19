@@ -8,6 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
 import { ToastService } from '../services/toast.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 type EvidenceKind = 'overview' | 'closeup' | 'document';
@@ -16,7 +17,7 @@ type EvidenceKind = 'overview' | 'closeup' | 'document';
   selector: 'app-incident',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterLink, MobileShellComponent,
+    CommonModule, FormsModule, RouterLink, MobileShellComponent, LoaderComponent,
     IonCard, IonCardContent, IonIcon, IonSegment, IonSegmentButton, IonLabel,
     IonItem, IonTextarea, IonCheckbox, IonButton,
   ],
@@ -53,7 +54,8 @@ type EvidenceKind = 'overview' | 'closeup' | 'document';
             </ng-container>
             <ng-template #emptyEvidence>
               <label class="evidence-empty">
-                <span class="add-mark">＋</span><span>{{ slot.label }}</span><strong>{{ uploading === slot.kind ? 'Uploading...' : 'Add evidence' }}</strong>
+                <span class="add-mark">＋</span><span>{{ slot.label }}</span>
+                @if (uploading === slot.kind) { <wf-loader mode="inline" message="Uploading..." /> } @else { <strong>Add evidence</strong> }
                 <input hidden type="file" accept="image/*" capture="environment" [disabled]="!!uploading" (change)="uploadEvidence(slot.kind,$event)">
               </label>
             </ng-template>
@@ -65,7 +67,10 @@ type EvidenceKind = 'overview' | 'closeup' | 'document';
       <ion-item lines="none" button="true" (click)="supervisorContacted=!supervisorContacted"><ion-checkbox slot="start" [checked]="supervisorContacted" (click)="$event.stopPropagation(); supervisorContacted=!supervisorContacted"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Supervisor has been contacted</strong><p class="caption">Franchise admin will receive an urgent alert.</p></ion-label></ion-item>
     </ion-card-content></ion-card>
     @if(state.syncError()){<ion-card class="wf-card danger-card"><ion-card-content><strong>Incident could not be submitted</strong><p class="caption" style="margin:6px 0 0">{{state.syncError()}}</p></ion-card-content></ion-card>}
-    <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy() || !!uploading" (click)="submit()">Submit incident report</ion-button>
+    <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy() || !!uploading" (click)="submit()">
+      @if (state.busy()) { <wf-loader mode="button" /> }
+      Submit incident report
+    </ion-button>
     <ion-button class="wf-button wf-secondary" expand="block" routerLink="/dashboard">Cancel and return</ion-button>
   </main>
 </wf-mobile-shell>

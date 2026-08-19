@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonButton, IonRange } from '@ionic/angular/standalone';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { DriverStateService } from '../services/driver-state.service';
 import { Router } from '@angular/router';
@@ -9,7 +10,7 @@ import { Router } from '@angular/router';
 @Component({
   selector: 'app-fueling',
   standalone: true,
-  imports: [FormsModule, RouterLink, MobileShellComponent, IonCard, IonCardContent, IonButton, IonRange],
+  imports: [FormsModule, RouterLink, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonButton, IonRange],
   template: `
 <wf-mobile-shell title="Fuel delivery" [subtitle]="state.selectedJob()?.equipmentName || 'Assigned equipment'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/meter'">
   <main class="screen-body stack">
@@ -26,7 +27,10 @@ import { Router } from '@angular/router';
       <p class="caption" style="margin:0 0 4px">Delivered volume</p>
       <ion-range min="0" [max]="targetGallons" [(ngModel)]="gallons" [pin]="true"></ion-range>
     </div>
-    <ion-button class="wf-button wf-secondary" expand="block" [disabled]="!canStop" (click)="stopAndRecord()">Stop and record delivery</ion-button>
+    <ion-button class="wf-button wf-secondary" expand="block" [disabled]="!canStop || state.busy()" (click)="stopAndRecord()">
+      @if (state.busy()) { <wf-loader mode="button" /> }
+      Stop and record delivery
+    </ion-button>
     <ion-button class="wf-button" color="danger" fill="outline" expand="block" routerLink="/incident" [queryParams]="{jobId: state.selectedJob()?.id}">Emergency stop / report spill</ion-button>
   </main>
 </wf-mobile-shell>

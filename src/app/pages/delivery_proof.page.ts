@@ -3,13 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { IonButton, IonButtons, IonCard, IonCardContent, IonCheckbox, IonContent, IonHeader, IonInput, IonItem, IonLabel, IonModal, IonTitle, IonToolbar, IonTextarea } from '@ionic/angular/standalone';
 import { DriverStateService } from '../services/driver-state.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 import { ToastService } from '../services/toast.service';
 
 @Component({
   selector: 'app-delivery-proof',
   standalone: true,
-  imports: [FormsModule, MobileShellComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton, IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonContent],
+  imports: [FormsModule, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton, IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonContent],
   template: `
     <wf-mobile-shell title="Delivery proof" [subtitle]="state.deliveredGallons() + ' gallons captured'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/fueling'">
       <main class="screen-body stack">
@@ -30,7 +31,8 @@ import { ToastService } from '../services/toast.service';
                 </div>
               } @else {
                 <label class="photo-box">
-                  <span class="camera-mark">📷</span><span>Meter photo</span><strong>{{ uploading === 'meter' ? 'Uploading...' : 'Tap to capture' }}</strong>
+                  <span class="camera-mark">📷</span><span>Meter photo</span>
+                  @if (uploading === 'meter') { <wf-loader mode="inline" message="Uploading..." /> } @else { <strong>Tap to capture</strong> }
                   <input hidden type="file" accept="image/*" capture="environment" [disabled]="!!uploading" (change)="uploadPhoto('meter',$event)">
                 </label>
               }
@@ -48,7 +50,8 @@ import { ToastService } from '../services/toast.service';
                 </div>
               } @else {
                 <label class="photo-box">
-                  <span class="camera-mark">📷</span><span>Equipment photo</span><strong>{{ uploading === 'equipment' ? 'Uploading...' : 'Tap to capture' }}</strong>
+                  <span class="camera-mark">📷</span><span>Equipment photo</span>
+                  @if (uploading === 'equipment') { <wf-loader mode="inline" message="Uploading..." /> } @else { <strong>Tap to capture</strong> }
                   <input hidden type="file" accept="image/*" capture="environment" [disabled]="!!uploading" (change)="uploadPhoto('equipment',$event)">
                 </label>
               }
@@ -70,7 +73,10 @@ import { ToastService } from '../services/toast.service';
           <ion-item lines="none" button="true" (click)="notified=!notified"><ion-checkbox slot="start" [checked]="notified" (click)="$event.stopPropagation(); notified=!notified"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Customer/site contact notified</strong><p class="caption">Delivery completion communicated.</p></ion-label></ion-item>
         </ion-card-content></ion-card>
         <ion-item><ion-textarea label="Driver notes" labelPlacement="stacked" [(ngModel)]="notes" placeholder="Delivery completed without issue..."></ion-textarea></ion-item>
-        <ion-button class="wf-button" expand="block" [disabled]="!canReview" (click)="review()">Review delivery summary</ion-button>
+        <ion-button class="wf-button" expand="block" [disabled]="!canReview || state.busy()" (click)="review()">
+          @if (state.busy()) { <wf-loader mode="button" /> }
+          Review delivery summary
+        </ion-button>
       </main>
       <ion-modal [isOpen]="!!previewPhotoUrl" (didDismiss)="closePreview()">
         <ng-template>

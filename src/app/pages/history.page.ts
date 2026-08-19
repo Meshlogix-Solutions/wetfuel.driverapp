@@ -9,18 +9,22 @@ import { ConnectivityService } from '../services/connectivity.service';
 import { OfflineStoreService, LocalJobRecord } from '../services/offline-store.service';
 import { OfflineSyncService } from '../services/offline-sync.service';
 import { ToastService } from '../services/toast.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-history',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterLink, MobileShellComponent,
+    CommonModule, FormsModule, RouterLink, MobileShellComponent, LoaderComponent,
     IonCard, IonCardContent, IonIcon, IonItem, IonInput, IonButton, IonCheckbox, IonLabel,
   ],
   template: `
 <wf-mobile-shell title="Delivery history" [subtitle]="subtitle" [showNav]="true">
   <main class="screen-body stack">
+    @if (loading() && !hasLoaded()) {
+      <wf-loader mode="section" message="Loading delivery history..." />
+    } @else {
     <section class="grid-2">
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Pending</span><strong>{{ pendingJobs().length }}</strong><span class="caption">to sync</span></ion-card-content></ion-card>
       <ion-card class="wf-card"><ion-card-content class="metric"><span class="label">Delivered</span><strong>{{ deliveredGallons }}</strong><span class="caption">gallons</span></ion-card-content></ion-card>
@@ -40,8 +44,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
     @if (sync.syncing()) {
       <ion-card class="wf-card">
         <ion-card-content>
-          <strong>Syncing...</strong>
-          <p class="caption" style="margin:4px 0 0">Uploading photos and posting job events.</p>
+          <wf-loader mode="inline" message="Syncing jobs..." />
         </ion-card-content>
       </ion-card>
     }
@@ -82,11 +85,13 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
         <ion-button class="wf-button" color="tertiary" expand="block"
           [disabled]="!selectedIds().length || !connectivity.online() || sync.syncing()"
           (click)="syncSelected()">
+          @if (sync.syncing()) { <wf-loader mode="button" /> }
           Sync selected ({{ selectedIds().length }})
         </ion-button>
         <ion-button class="wf-button wf-secondary" expand="block"
           [disabled]="!connectivity.online() || sync.syncing()"
           (click)="syncAll()">
+          @if (sync.syncing()) { <wf-loader mode="button" /> }
           Sync all pending
         </ion-button>
       }
@@ -113,6 +118,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       }
     </section>
     <ion-button class="wf-button wf-secondary" expand="block" routerLink="/jobs">Back to assigned jobs</ion-button>
+    }
   </main>
 </wf-mobile-shell>
   `,
@@ -128,6 +134,8 @@ export class HistoryPage {
   readonly recentDeliveries = signal<DriverDelivery[]>([]);
   readonly pendingJobs = signal<LocalJobRecord[]>([]);
   readonly selectedIds = signal<string[]>([]);
+  readonly loading = signal(true);
+  readonly hasLoaded = signal(false);
   query = '';
 
   ionViewWillEnter(): void {
@@ -243,11 +251,20 @@ export class HistoryPage {
   }
 
   private async reload(): Promise<void> {
+    if (!(this.loading() && this.hasLoaded())) this.loading.set(true);
     await this.sync.refreshPendingJobs();
     this.pendingJobs.set(await this.store.getPendingSyncJobs());
     this.api.getRecentDeliveries().subscribe({
-      next: deliveries => this.recentDeliveries.set(deliveries),
-      error: () => this.recentDeliveries.set([]),
+      next: deliveries => {
+        this.recentDeliveries.set(deliveries);
+        this.hasLoaded.set(true);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.recentDeliveries.set([]);
+        this.hasLoaded.set(true);
+        this.loading.set(false);
+      },
     });
   }
 

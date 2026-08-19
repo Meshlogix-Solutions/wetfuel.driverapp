@@ -98,6 +98,7 @@ import { LoaderComponent } from '../shared/loader.component';
         </div>
       }
       <button class="primary-dashboard-button" type="button" [disabled]="dashboardLoading() || state.busy()" (click)="handleShiftAction()">
+        @if (state.busy()) { <wf-loader mode="button" /> }
         {{ shiftActionLabel }}
       </button>
     </section>

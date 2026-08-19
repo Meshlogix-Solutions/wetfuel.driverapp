@@ -2,15 +2,19 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { IonCard, IonCardContent } from '@ionic/angular/standalone';
 import { DriverApiService, DriverProfile, DriverShift } from '../services/driver-api.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-hours',
   standalone: true,
-  imports: [CommonModule, MobileShellComponent, IonCard, IonCardContent],
+    imports: [CommonModule, MobileShellComponent, LoaderComponent, IonCard, IonCardContent],
   template: `
     <wf-mobile-shell title="Hours and shifts" subtitle="This week" [showNav]="true">
       <main class="screen-body stack">
+        @if (!profile()) {
+          <wf-loader mode="section" message="Loading hours..." />
+        } @else {
         <ion-card class="wf-card hero-card"><ion-card-content>
           <span class="pill dark">{{ weekLabel }}</span>
           <h2 style="font-size:42px;margin:18px 0 4px;letter-spacing:-.05em">{{ profile()?.hoursThisWeek ?? 0 }}h</h2>
@@ -27,6 +31,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
             <ion-card class="wf-card"><ion-card-content class="text-center">No shifts recorded this week.</ion-card-content></ion-card>
           }
         </section>
+        }
       </main>
     </wf-mobile-shell>
   `,

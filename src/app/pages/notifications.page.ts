@@ -1,17 +1,21 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone';
 import { DriverNotificationService } from '../services/driver-notification.service';
+import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-notifications',
   standalone: true,
-  imports: [CommonModule, RouterLink, MobileShellComponent, IonCard, IonCardContent, IonIcon, IonButton],
+  imports: [CommonModule, RouterLink, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonIcon, IonButton],
   template: `
 <wf-mobile-shell title="Notifications" [subtitle]="notifications.items().length + ' active'" backRoute="/dashboard">
   <main class="screen-body stack">
+    @if (loading()) {
+      <wf-loader mode="section" message="Loading notifications..." />
+    } @else {
     <div class="row-between">
       <div class="row wrap"><button class="chip active">All</button><button class="chip">Jobs</button><button class="chip">Safety</button></div>
       <ion-button fill="clear" size="small" [disabled]="notifications.unreadCount() === 0" (click)="notifications.markAllRead()">Mark all read</ion-button>
@@ -24,15 +28,19 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       </ion-card-content>
     </ion-card>
     <ion-card *ngIf="notifications.items().length === 0" class="wf-card soft-card text-center"><ion-card-content><strong>Nothing needs attention</strong><p class="caption">Assignments, sync status and certification reminders will appear here.</p></ion-card-content></ion-card>
+    }
   </main>
 </wf-mobile-shell>
   `,
 })
 export class NotificationsPage {
   readonly notifications = inject(DriverNotificationService);
+  readonly loading = signal(true);
 
   async ionViewWillEnter(): Promise<void> {
+    this.loading.set(true);
     await this.notifications.refresh();
     this.notifications.markAllRead();
+    this.loading.set(false);
   }
 }
