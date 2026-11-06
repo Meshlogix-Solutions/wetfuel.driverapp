@@ -1,5 +1,15 @@
 import { Injectable } from '@angular/core';
-import { DriverJob, OfflineDriverEvent } from './driver-api.service';
+import {
+  DriverComplianceDocument,
+  DriverDashboardJobs,
+  DriverDashboardSummary,
+  DriverDelivery,
+  DriverJob,
+  DriverProfile,
+  DriverShift,
+  DriverVehicle,
+  OfflineDriverEvent,
+} from './driver-api.service';
 
 export type JobSyncStatus = 'synced' | 'pending';
 
@@ -24,8 +34,52 @@ export interface PendingUpload {
   createdAt: string;
 }
 
+export interface CacheMeta {
+  key: string;
+  updatedAt: string;
+}
+
+export interface CachedDashboard {
+  id: 'current';
+  summary: DriverDashboardSummary | null;
+  jobs: DriverDashboardJobs | null;
+  summaryStart?: string;
+  summaryEnd?: string;
+}
+
+export interface CachedShiftBundle {
+  id: 'current';
+  active: DriverShift | null;
+  shifts: DriverShift[];
+}
+
+export interface CachedProfile {
+  id: 'current';
+  profile: DriverProfile;
+}
+
+export interface CachedJobRow {
+  id: string;
+  job: DriverJob;
+}
+
+export interface CachedVehicleRow {
+  id: string;
+  vehicle: DriverVehicle;
+}
+
+export interface CachedDeliveryRow {
+  id: string;
+  delivery: DriverDelivery;
+}
+
+export interface CachedDocumentRow {
+  id: string;
+  document: DriverComplianceDocument;
+}
+
 const DB_NAME = 'wetfuel-driver-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 @Injectable({ providedIn: 'root' })
 export class OfflineStoreService {
@@ -107,6 +161,107 @@ export class OfflineStoreService {
     await Promise.all(events.filter(event => event.synced).map(event => this.delete('pending_events', event.clientEventId)));
   }
 
+  async saveCacheProfile(profile: DriverProfile): Promise<void> {
+    await this.put<CachedProfile>('cache_profile', { id: 'current', profile });
+    await this.touchMeta('profile');
+  }
+
+  async getCacheProfile(): Promise<DriverProfile | null> {
+    const row = await this.get<CachedProfile>('cache_profile', 'current');
+    return row?.profile ?? null;
+  }
+
+  async saveCacheJobs(jobs: DriverJob[]): Promise<void> {
+    const existing = await this.getAll<CachedJobRow>('cache_jobs');
+    await Promise.all(existing.map(row => this.delete('cache_jobs', row.id)));
+    await Promise.all(jobs.map(job => this.put<CachedJobRow>('cache_jobs', { id: job.id, job })));
+    await this.touchMeta('jobs');
+  }
+
+  async getCacheJobs(): Promise<DriverJob[]> {
+    const rows = await this.getAll<CachedJobRow>('cache_jobs');
+    return rows.map(row => row.job);
+  }
+
+  async saveCacheShifts(active: DriverShift | null, shifts: DriverShift[]): Promise<void> {
+    await this.put<CachedShiftBundle>('cache_shift', { id: 'current', active, shifts });
+    await this.touchMeta('shifts');
+  }
+
+  async getCacheShifts(): Promise<CachedShiftBundle | null> {
+    return this.get<CachedShiftBundle>('cache_shift', 'current');
+  }
+
+  async saveCacheVehicles(vehicles: DriverVehicle[]): Promise<void> {
+    const existing = await this.getAll<CachedVehicleRow>('cache_vehicles');
+    await Promise.all(existing.map(row => this.delete('cache_vehicles', row.id)));
+    await Promise.all(vehicles.map(vehicle => this.put<CachedVehicleRow>('cache_vehicles', { id: vehicle.id, vehicle })));
+    await this.touchMeta('vehicles');
+  }
+
+  async getCacheVehicles(): Promise<DriverVehicle[]> {
+    const rows = await this.getAll<CachedVehicleRow>('cache_vehicles');
+    return rows.map(row => row.vehicle);
+  }
+
+  async saveCacheDeliveries(deliveries: DriverDelivery[]): Promise<void> {
+    const existing = await this.getAll<CachedDeliveryRow>('cache_deliveries');
+    await Promise.all(existing.map(row => this.delete('cache_deliveries', row.id)));
+    await Promise.all(deliveries.map(delivery => this.put<CachedDeliveryRow>('cache_deliveries', { id: delivery.id, delivery })));
+    await this.touchMeta('deliveries');
+  }
+
+  async getCacheDeliveries(): Promise<DriverDelivery[]> {
+    const rows = await this.getAll<CachedDeliveryRow>('cache_deliveries');
+    return rows.map(row => row.delivery);
+  }
+
+  async saveCacheDashboard(
+    summary: DriverDashboardSummary | null,
+    jobs: DriverDashboardJobs | null,
+    summaryStart?: string,
+    summaryEnd?: string,
+  ): Promise<void> {
+    await this.put<CachedDashboard>('cache_dashboard', {
+      id: 'current',
+      summary,
+      jobs,
+      summaryStart,
+      summaryEnd,
+    });
+    await this.touchMeta('dashboard');
+  }
+
+  async getCacheDashboard(): Promise<CachedDashboard | null> {
+    return this.get<CachedDashboard>('cache_dashboard', 'current');
+  }
+
+  async saveCacheDocuments(documents: DriverComplianceDocument[]): Promise<void> {
+    const existing = await this.getAll<CachedDocumentRow>('cache_documents');
+    await Promise.all(existing.map(row => this.delete('cache_documents', row.id)));
+    await Promise.all(documents.map(document => this.put<CachedDocumentRow>('cache_documents', { id: document.id, document })));
+    await this.touchMeta('documents');
+  }
+
+  async getCacheDocuments(): Promise<DriverComplianceDocument[]> {
+    const rows = await this.getAll<CachedDocumentRow>('cache_documents');
+    return rows.map(row => row.document);
+  }
+
+  async getCacheMeta(key: string): Promise<CacheMeta | null> {
+    return this.get<CacheMeta>('cache_meta', key);
+  }
+
+  async getLastHydratedAt(): Promise<string | null> {
+    return (await this.getCacheMeta('lastHydratedAt'))?.updatedAt ?? null;
+  }
+
+  private async touchMeta(key: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.put<CacheMeta>('cache_meta', { key, updatedAt: now });
+    await this.put<CacheMeta>('cache_meta', { key: 'lastHydratedAt', updatedAt: now });
+  }
+
   private openDb(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
     this.dbPromise = new Promise((resolve, reject) => {
@@ -124,6 +279,30 @@ export class OfflineStoreService {
           const store = db.createObjectStore('pending_uploads', { keyPath: 'id' });
           store.createIndex('jobId', 'jobId', { unique: false });
         }
+        if (!db.objectStoreNames.contains('cache_profile')) {
+          db.createObjectStore('cache_profile', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_jobs')) {
+          db.createObjectStore('cache_jobs', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_shift')) {
+          db.createObjectStore('cache_shift', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_vehicles')) {
+          db.createObjectStore('cache_vehicles', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_deliveries')) {
+          db.createObjectStore('cache_deliveries', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_dashboard')) {
+          db.createObjectStore('cache_dashboard', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_documents')) {
+          db.createObjectStore('cache_documents', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('cache_meta')) {
+          db.createObjectStore('cache_meta', { keyPath: 'key' });
+        }
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'));
@@ -132,27 +311,27 @@ export class OfflineStoreService {
   }
 
   private async put<T>(storeName: string, value: T): Promise<void> {
-    const db = await this.openDb();
+    await this.openDb();
     await this.runTransaction(storeName, 'readwrite', store => store.put(value));
   }
 
   private async get<T>(storeName: string, key: IDBValidKey): Promise<T | null> {
-    const db = await this.openDb();
+    await this.openDb();
     return this.runTransaction(storeName, 'readonly', store => store.get(key)) as Promise<T | null>;
   }
 
   private async getAll<T>(storeName: string): Promise<T[]> {
-    const db = await this.openDb();
+    await this.openDb();
     return this.runTransaction(storeName, 'readonly', store => store.getAll()) as Promise<T[]>;
   }
 
   private async getAllByIndex<T>(storeName: string, indexName: string, key: IDBValidKey): Promise<T[]> {
-    const db = await this.openDb();
+    await this.openDb();
     return this.runTransaction(storeName, 'readonly', store => store.index(indexName).getAll(key)) as Promise<T[]>;
   }
 
   private async delete(storeName: string, key: IDBValidKey): Promise<void> {
-    const db = await this.openDb();
+    await this.openDb();
     await this.runTransaction(storeName, 'readwrite', store => store.delete(key));
   }
 

@@ -3,14 +3,13 @@ import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { IonIcon } from '@ionic/angular/standalone';
 import {
-  DriverApiService,
   DriverDashboardJobs,
   DriverDashboardSummary,
   DriverJob,
   DriverProfile,
   DriverShift,
 } from '../services/driver-api.service';
-import { firstValueFrom } from 'rxjs';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverNotificationService } from '../services/driver-notification.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
@@ -321,7 +320,7 @@ import { LoaderComponent } from '../shared/loader.component';
   `],
 })
 export class DashboardPage implements OnDestroy {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   readonly state = inject(DriverStateService);
   private readonly workflow = inject(DriverWorkflowService);
   readonly notifications = inject(DriverNotificationService);
@@ -358,24 +357,28 @@ export class DashboardPage implements OnDestroy {
 
   async loadDashboard(): Promise<void> {
     if (this.dashboardLoading() && this.hasLoaded()) return;
-    this.dashboardLoading.set(true);
     this.dashboardError.set('');
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    try {
-      const [profile, shift, dashboardJobs, summary] = await Promise.all([
-        firstValueFrom(this.api.getCurrentDriver()),
-        firstValueFrom(this.api.getActiveShift()),
-        firstValueFrom(this.api.getDashboardJobs()),
-        firstValueFrom(this.api.getDashboardSummary(start, end)),
-      ]);
-      this.profile.set(profile);
-      this.activeShift.set(shift);
-      this.applyDashboardJobs(dashboardJobs);
-      this.summary.set(summary);
+    this.applyFromCache();
+    const hasCache = this.cache.hydrated() || !!this.cache.profile() || !!this.cache.dashboardJobs();
+    if (hasCache) {
       this.hasLoaded.set(true);
+      this.dashboardLoading.set(false);
+      void this.cache.refreshIfOnline().then(() => {
+        this.applyFromCache();
+        this.hasLoaded.set(true);
+      });
+      return;
+    }
+
+    this.dashboardLoading.set(true);
+    try {
+      await this.cache.refreshIfOnline();
+      this.applyFromCache();
+      if (!this.cache.hydrated() && !this.cache.profile()) {
+        this.dashboardError.set('Dashboard data could not be loaded. Check your connection and try again.');
+      } else {
+        this.hasLoaded.set(true);
+      }
     } catch {
       this.dashboardError.set('Dashboard data could not be loaded. Check your connection and try again.');
     } finally {
@@ -385,9 +388,26 @@ export class DashboardPage implements OnDestroy {
 
   async refreshDashboard(request: RefreshRequest): Promise<void> {
     try {
-      await Promise.all([this.loadDashboard(), this.notifications.refresh()]);
+      await Promise.all([this.cache.refreshIfOnline(), this.notifications.refresh()]);
+      this.applyFromCache();
+      this.hasLoaded.set(true);
     } finally {
       request.complete();
+    }
+  }
+
+  private applyFromCache(): void {
+    this.profile.set(this.cache.profile());
+    this.activeShift.set(this.cache.activeShift());
+    const summary = this.cache.dashboardSummary();
+    if (summary) this.summary.set(summary);
+    const dashboardJobs = this.cache.dashboardJobs();
+    if (dashboardJobs) this.applyDashboardJobs(dashboardJobs);
+    else if (this.cache.jobs().length) {
+      const jobs = this.cache.jobs();
+      const active = jobs.find(job => ['started', 'arrived', 'equipment_verified', 'fueled', 'proof_submitted'].includes(job.status)) ?? null;
+      const next = jobs.find(job => job.status === 'assigned') ?? null;
+      this.applyDashboardJobs({ activeJob: active, nextJob: next, nextJobSequence: next ? 1 : 0 });
     }
   }
 

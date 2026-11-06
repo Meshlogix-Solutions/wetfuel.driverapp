@@ -4,8 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AlertController, IonButton, IonCard, IonCardContent, IonCheckbox, IonIcon, IonInput, IonItem, IonLabel
 } from '@ionic/angular/standalone';
-import { DriverApiService, DriverDelivery } from '../services/driver-api.service';
+import { DriverDelivery } from '../services/driver-api.service';
 import { ConnectivityService } from '../services/connectivity.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { OfflineStoreService, LocalJobRecord } from '../services/offline-store.service';
 import { OfflineSyncService } from '../services/offline-sync.service';
 import { ToastService } from '../services/toast.service';
@@ -124,8 +125,8 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `,
 })
 export class HistoryPage {
-  private readonly api = inject(DriverApiService);
   private readonly store = inject(OfflineStoreService);
+  private readonly cache = inject(DriverCacheService);
   readonly sync = inject(OfflineSyncService);
   readonly connectivity = inject(ConnectivityService);
   private readonly toast = inject(ToastService);
@@ -251,21 +252,21 @@ export class HistoryPage {
   }
 
   private async reload(): Promise<void> {
-    if (!(this.loading() && this.hasLoaded())) this.loading.set(true);
+    const hadCache = this.hasLoaded() || this.cache.deliveries().length > 0 || this.cache.hydrated();
+    if (!hadCache) this.loading.set(true);
     await this.sync.refreshPendingJobs();
     this.pendingJobs.set(await this.store.getPendingSyncJobs());
-    this.api.getRecentDeliveries().subscribe({
-      next: deliveries => {
-        this.recentDeliveries.set(deliveries);
-        this.hasLoaded.set(true);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.recentDeliveries.set([]);
-        this.hasLoaded.set(true);
-        this.loading.set(false);
-      },
-    });
+    if (hadCache) {
+      this.recentDeliveries.set(this.cache.deliveries());
+      this.hasLoaded.set(true);
+      this.loading.set(false);
+      void this.cache.refreshIfOnline().then(() => this.recentDeliveries.set(this.cache.deliveries()));
+      return;
+    }
+    await this.cache.refreshIfOnline();
+    this.recentDeliveries.set(this.cache.deliveries());
+    this.hasLoaded.set(true);
+    this.loading.set(false);
   }
 
   private matches(...values: Array<string | undefined>): boolean {

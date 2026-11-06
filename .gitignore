@@ -13,6 +13,10 @@ out-tsc/
 android/
 ios/
 
+# Native compile output from the vendored Bluetooth plugin
+vendor/**/build/
+vendor/**/.gradle/
+
 # IDE / editor
 .vscode/
 .idea/

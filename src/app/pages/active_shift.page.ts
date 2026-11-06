@@ -2,7 +2,8 @@ import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone';
-import { DriverApiService, DriverJob, DriverShift } from '../services/driver-api.service';
+import { DriverJob, DriverShift } from '../services/driver-api.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
 import { LoaderComponent } from '../shared/loader.component';
@@ -35,7 +36,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
 </wf-mobile-shell>`,
 })
 export class ActiveShiftPage {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   readonly state = inject(DriverStateService);
   private readonly workflow = inject(DriverWorkflowService);
   private readonly router = inject(Router);
@@ -50,14 +51,19 @@ export class ActiveShiftPage {
   readonly todayJobs = computed(() => this.jobs().filter(job=>this.isToday(job.scheduledAt)&&job.status!=='cancelled').length);
   readonly completedToday = computed(() => this.jobs().filter(job=>this.isToday(job.scheduledAt)&&job.status==='completed').length);
 
-  ionViewWillEnter(): void { void this.loadShift(true); this.api.getJobs().subscribe({next:jobs=>this.jobs.set(jobs)}); }
+  ionViewWillEnter(): void {
+    void this.loadShift(true);
+    this.jobs.set(this.cache.jobs());
+    void this.cache.refreshIfOnline().then(() => this.jobs.set(this.cache.jobs()));
+  }
   get duration():string{const shift=this.activeShift();if(!shift)return '0h 00m';const minutes=Math.max(0,Math.floor((Date.now()-new Date(shift.startedAt).getTime())/60000)-shift.breakMinutes);return `${Math.floor(minutes/60)}h ${String(minutes%60).padStart(2,'0')}m`;}
   async selectVehicle():Promise<void>{if(await this.workflow.selectAssignedVehicle())await this.loadShift();}
   async togglePause():Promise<void>{if(await this.state.togglePause(this.paused()))await this.loadShift();}
   async clockOut():Promise<void>{if(await this.state.clockOut())void this.router.navigateByUrl('/dashboard');}
 
   private async loadShift(promptForVehicle=false):Promise<void>{
-    this.loading.set(true);
+    const hasCache = !!this.cache.activeShift() || this.cache.hydrated();
+    if (!hasCache) this.loading.set(true);
     const shift=await this.workflow.getActiveShift();this.activeShift.set(shift);
     if(shift?.vehicleId)this.state.selectedVehicleId.set(shift.vehicleId);
     if(promptForVehicle&&shift&&!shift.vehicleId&&await this.workflow.selectAssignedVehicle())this.activeShift.set(await this.workflow.getActiveShift());

@@ -1,14 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { IonCard, IonCardContent } from '@ionic/angular/standalone';
-import { DriverApiService, DriverProfile, DriverShift } from '../services/driver-api.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-hours',
   standalone: true,
-    imports: [CommonModule, MobileShellComponent, LoaderComponent, IonCard, IonCardContent],
+  imports: [CommonModule, MobileShellComponent, LoaderComponent, IonCard, IonCardContent],
   template: `
     <wf-mobile-shell title="Hours and shifts" subtitle="This week" [showNav]="true">
       <main class="screen-body stack">
@@ -37,13 +37,12 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `,
 })
 export class HoursPage {
-  private readonly api = inject(DriverApiService);
-  readonly profile = signal<DriverProfile | null>(null);
-  readonly shifts = signal<DriverShift[]>([]);
+  private readonly cache = inject(DriverCacheService);
+  readonly profile = this.cache.profile;
+  readonly shifts = this.cache.shifts;
 
-  constructor() {
-    this.api.getCurrentDriver().subscribe({ next: p => this.profile.set(p) });
-    this.api.getShifts().subscribe({ next: s => this.shifts.set(s) });
+  ionViewWillEnter(): void {
+    void this.cache.refreshIfOnline();
   }
 
   get remainingHours():number{return Math.max(0,Math.round((40-(this.profile()?.hoursThisWeek??0))*10)/10);}

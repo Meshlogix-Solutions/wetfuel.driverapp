@@ -2,8 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone';
-import { firstValueFrom, forkJoin } from 'rxjs';
-import { DriverApiService, DriverVehicle } from '../services/driver-api.service';
+import { DriverVehicle } from '../services/driver-api.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
@@ -43,7 +43,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
   `,
 })
 export class VehiclePage {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   readonly state = inject(DriverStateService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -54,21 +54,21 @@ export class VehiclePage {
   selected = '';
 
   async ionViewWillEnter(): Promise<void> {
-    this.loading.set(true);
     this.loadError.set('');
-    try {
-      const { vehicles, shift } = await firstValueFrom(forkJoin({ vehicles: this.api.getVehicles(), shift: this.api.getActiveShift() }));
-      this.vehicles.set(vehicles);
-      const currentVehicleId = shift?.vehicleId ?? this.state.selectedVehicleId();
-      this.selected = vehicles.some(vehicle => vehicle.id === currentVehicleId) ? currentVehicleId! : vehicles[0]?.id ?? '';
-    } catch (error: unknown) {
-      const failure = error as { error?: { message?: string }; message?: string };
-      this.vehicles.set([]);
-      this.selected = '';
-      this.loadError.set(failure.error?.message ?? failure.message ?? 'Check your connection and try again.');
-    } finally {
+    const cached = this.cache.vehicles();
+    if (cached.length || this.cache.hydrated()) {
+      this.applyVehicles(cached);
       this.loading.set(false);
+      void this.cache.refreshIfOnline().then(() => this.applyVehicles(this.cache.vehicles()));
+      return;
     }
+    this.loading.set(true);
+    await this.cache.refreshIfOnline();
+    this.applyVehicles(this.cache.vehicles());
+    if (!this.vehicles().length) {
+      this.loadError.set(this.cache.lastError() || 'Check your connection and try again.');
+    }
+    this.loading.set(false);
   }
 
   inventoryPercent(inventory: number, capacity: number): number { return capacity > 0 ? Math.round((inventory / capacity) * 100) : 0; }
@@ -78,5 +78,11 @@ export class VehiclePage {
     if (!vehicle || !this.jobId) return;
     if (!(await this.state.setVehicle(vehicle.id))) return;
     void this.router.navigate(['/jobs', this.jobId, 'pre-job-checklist']);
+  }
+
+  private applyVehicles(vehicles: DriverVehicle[]): void {
+    this.vehicles.set(vehicles);
+    const currentVehicleId = this.cache.activeShift()?.vehicleId ?? this.state.selectedVehicleId();
+    this.selected = vehicles.some(vehicle => vehicle.id === currentVehicleId) ? currentVehicleId! : vehicles[0]?.id ?? '';
   }
 }

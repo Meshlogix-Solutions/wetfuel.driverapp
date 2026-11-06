@@ -10,6 +10,8 @@ import {
   DriverApiService,
   DriverComplianceDocument,
 } from '../services/driver-api.service';
+import { ConnectivityService } from '../services/connectivity.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
@@ -30,6 +32,14 @@ import { ToastService } from '../services/toast.service';
           Take a clear photo of your license, certification, or other compliance document.
           We extract expiry and details automatically. Blurry photos are rejected — try again.
         </p>
+        @if (!connectivity.online()) {
+          <ion-card class="wf-card warning-card" style="margin:0">
+            <ion-card-content>
+              <strong>Internet required to add documents</strong>
+              <p class="caption" style="margin:4px 0 0">Extract and upload need a connection. You can still review documents already saved on this device.</p>
+            </ion-card-content>
+          </ion-card>
+        }
 
         <label class="field-label">Document type</label>
         <ion-select
@@ -50,15 +60,15 @@ import { ToastService } from '../services/toast.service';
         }
 
         <div class="action-row">
-          <label class="capture-btn" [class.disabled]="busy() || extracting()">
+          <label class="capture-btn" [class.disabled]="busy() || extracting() || !connectivity.online()">
             <ion-icon name="camera-outline"></ion-icon>
             <span>{{ busy() || extracting() ? 'Working…' : 'Open camera' }}</span>
-            <input hidden type="file" accept="image/*" capture="environment" [disabled]="busy() || extracting()" (change)="onFilePicked($event, true)">
+            <input hidden type="file" accept="image/*" capture="environment" [disabled]="busy() || extracting() || !connectivity.online()" (change)="onFilePicked($event, true)">
           </label>
-          <label class="capture-btn secondary" [class.disabled]="busy() || extracting()">
+          <label class="capture-btn secondary" [class.disabled]="busy() || extracting() || !connectivity.online()">
             <ion-icon name="clipboard-outline"></ion-icon>
             <span>Upload file</span>
-            <input hidden type="file" accept="image/*" [disabled]="busy() || extracting()" (change)="onFilePicked($event, false)">
+            <input hidden type="file" accept="image/*" [disabled]="busy() || extracting() || !connectivity.online()" (change)="onFilePicked($event, false)">
           </label>
         </div>
 
@@ -214,6 +224,8 @@ export class DocumentsPage {
   private static readonly DocTypeStorageKey = 'wf.driver.complianceDocType';
 
   private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
+  readonly connectivity = inject(ConnectivityService);
   private readonly toast = inject(ToastService);
   private readonly alerts = inject(AlertController);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -274,20 +286,30 @@ export class DocumentsPage {
   }
 
   reload(): void {
+    const cached = this.cache.documents();
+    if (cached.length || this.cache.hydrated()) {
+      this.documents.set(cached);
+      this.loading.set(false);
+      void this.cache.refreshIfOnline().then(() => this.documents.set(this.cache.documents()));
+      return;
+    }
     this.loading.set(true);
-    this.api.getMyComplianceDocuments().subscribe({
-      next: (docs) => {
-        this.documents.set(docs);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
+    void this.cache.refreshIfOnline().then(() => {
+      this.documents.set(this.cache.documents());
+      this.loading.set(false);
+      if (!this.documents().length && this.cache.lastError()) {
         void this.toast.error('Could not load documents.');
-      },
+      }
     });
   }
 
   onFilePicked(event: Event, _fromCamera: boolean): void {
+    if (!this.connectivity.online()) {
+      void this.toast.error('Connect to the internet to extract and upload documents.');
+      const input = event.target as HTMLInputElement;
+      input.value = '';
+      return;
+    }
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
     input.value = '';
@@ -327,6 +349,10 @@ export class DocumentsPage {
   }
 
   private async extractAndPopulate(file: File): Promise<void> {
+    if (!this.connectivity.online()) {
+      void this.toast.error('Document extraction requires an internet connection.');
+      return;
+    }
     const docTypeHint = this.documentType();
     this.extracting.set(true);
     this.cdr.detectChanges();
@@ -362,6 +388,10 @@ export class DocumentsPage {
   }
 
   async saveUpload(): Promise<void> {
+    if (!this.connectivity.online()) {
+      void this.toast.error('Document upload requires an internet connection.');
+      return;
+    }
     const file = this.selectedFile();
     const docType = this.documentType();
     if (!file) return;
@@ -403,7 +433,10 @@ export class DocumentsPage {
               ? `Document saved.${expiry}`
               : 'Document saved.',
         );
-        this.reload();
+        const next = [doc, ...this.documents().filter(item => item.id !== doc.id && item.documentType?.toLowerCase() !== docType.toLowerCase())];
+        this.documents.set(next);
+        void this.cache.setDocuments(next);
+        void this.cache.refreshIfOnline();
         this.cdr.detectChanges();
       },
       error: (err) => {

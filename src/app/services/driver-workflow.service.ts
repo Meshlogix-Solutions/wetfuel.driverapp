@@ -1,31 +1,32 @@
 import { Injectable, inject } from '@angular/core';
 import { AlertController } from '@ionic/angular/standalone';
-import { firstValueFrom } from 'rxjs';
-import { DriverApiService, DriverShift, DriverVehicle } from './driver-api.service';
+import { DriverShift, DriverVehicle } from './driver-api.service';
+import { DriverCacheService } from './driver-cache.service';
+import { ConnectivityService } from './connectivity.service';
 import { DriverGeolocationService } from './driver-geolocation.service';
 import { DriverStateService } from './driver-state.service';
 import { ToastService } from './toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class DriverWorkflowService {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
+  private readonly connectivity = inject(ConnectivityService);
   private readonly state = inject(DriverStateService);
   private readonly geo = inject(DriverGeolocationService);
   private readonly alerts = inject(AlertController);
   private readonly toast = inject(ToastService);
 
   async getActiveShift(): Promise<DriverShift | null> {
-    try {
-      return await firstValueFrom(this.api.getActiveShift());
-    } catch {
-      return null;
+    if (this.connectivity.online()) {
+      await this.cache.refreshIfOnline();
     }
+    return this.cache.activeShift();
   }
 
   async startShift(): Promise<boolean> {
-    try {
-      if (await firstValueFrom(this.api.getActiveShift())) return true;
-    } catch {
+    const existing = await this.getActiveShift();
+    if (existing) return true;
+    if (!this.connectivity.online() && !this.cache.hydrated()) {
       void this.toast.error('The active shift could not be verified. Check your connection and try again.');
       return false;
     }
@@ -45,15 +46,13 @@ export class DriverWorkflowService {
     if (started) {
       const warning = this.state.syncWarnings()[0];
       if (warning) void this.toast.warning(warning.message);
+      await this.cache.refreshIfOnline();
     }
     if (!started) {
-      try {
-        if (await firstValueFrom(this.api.getActiveShift())) {
-          this.state.syncError.set('');
-          return true;
-        }
-      } catch {
-        // Preserve the original clock-in failure below.
+      const again = await this.getActiveShift();
+      if (again) {
+        this.state.syncError.set('');
+        return true;
       }
       void this.toast.error(this.state.syncError() || 'The shift could not be started.');
     }
@@ -69,15 +68,14 @@ export class DriverWorkflowService {
   }
 
   async selectAssignedVehicle(): Promise<boolean> {
-    let vehicles: DriverVehicle[];
-    try {
-      vehicles = await firstValueFrom(this.api.getVehicles());
-    } catch {
-      void this.toast.error('Assigned vehicles could not be loaded.');
-      return false;
+    if (this.connectivity.online()) {
+      await this.cache.refreshIfOnline();
     }
+    const vehicles: DriverVehicle[] = this.cache.vehicles();
     if (vehicles.length === 0) {
-      void this.toast.error('No active vehicle is assigned to your driver account.');
+      void this.toast.error(this.connectivity.online()
+        ? 'No active vehicle is assigned to your driver account.'
+        : 'Assigned vehicles are not available offline yet. Connect once to sync.');
       return false;
     }
 
@@ -105,6 +103,7 @@ export class DriverWorkflowService {
 
     const selected = await this.state.setVehicle(vehicleId);
     if (!selected) void this.toast.error(this.state.syncError() || 'The vehicle could not be selected.');
+    else await this.cache.refreshIfOnline();
     return selected;
   }
 

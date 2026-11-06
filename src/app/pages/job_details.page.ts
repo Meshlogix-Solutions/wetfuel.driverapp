@@ -2,8 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/standalone';
-import { firstValueFrom } from 'rxjs';
-import { DriverApiService, DriverJob, DriverShift } from '../services/driver-api.service';
+import { DriverJob, DriverShift } from '../services/driver-api.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { DriverWorkflowService } from '../services/driver-workflow.service';
 import { LoaderComponent } from '../shared/loader.component';
@@ -50,7 +50,7 @@ export class JobDetailsPage {
   readonly activeShift=signal<DriverShift|null>(null);
   readonly otherActiveJob=signal<DriverJob|null>(null);
   readonly requirementsLoading=signal(true);
-  constructor(readonly state:DriverStateService,private readonly router:Router,private readonly workflow:DriverWorkflowService,private readonly api:DriverApiService){}
+  constructor(readonly state:DriverStateService,private readonly router:Router,private readonly workflow:DriverWorkflowService,private readonly cache:DriverCacheService){}
   ionViewWillEnter():void{void this.loadRequirements();}
   get needsAction():boolean{return !this.activeShift()||!this.activeShift()?.vehicleId;}
   get blockedByOtherActiveJob():boolean{return this.state.selectedJob()?.status==='assigned'&&!!this.otherActiveJob();}
@@ -62,9 +62,11 @@ export class JobDetailsPage {
   async selectVehicle():Promise<void>{const job=this.state.selectedJob();if(job)void this.router.navigate(['/jobs',job.id,'vehicle-confirmation']);}
   async continueJob():Promise<void>{const job=this.state.selectedJob();if(!job)return;const currentStatus=job.status;if(currentStatus==='assigned'){if(this.needsAction||this.blockedByOtherActiveJob)return;void this.router.navigate(['/jobs',job.id,'vehicle-confirmation']);return;}const route=({started:'route-map',arrived:'qr-scanner',equipment_verified:'meter',fueled:'delivery-proof',proof_submitted:'delivery-summary'} as Record<string,string>)[currentStatus];if(currentStatus==='completed'){void this.router.navigateByUrl('/history');return;}if(!route){void this.router.navigateByUrl('/jobs');return;}void this.router.navigate(['/jobs',job.id,route]);}
   private async loadRequirements():Promise<void>{
-    this.requirementsLoading.set(true);
+    const hasCache=!!this.cache.activeShift()||this.cache.jobs().length>0||this.cache.hydrated();
+    if(!hasCache) this.requirementsLoading.set(true);
     const jobId=this.state.selectedJob()?.id;
-    const [shift,jobs]=await Promise.all([this.workflow.getActiveShift(),firstValueFrom(this.api.getJobs())]);
+    const shift=await this.workflow.getActiveShift();
+    const jobs=this.cache.jobs();
     this.activeShift.set(shift);
     if(shift?.vehicleId)this.state.selectedVehicleId.set(shift.vehicleId);
     this.otherActiveJob.set(jobs.find(job=>job.id!==jobId&&JobDetailsPage.IN_PROGRESS_STATUSES.has(job.status))??null);

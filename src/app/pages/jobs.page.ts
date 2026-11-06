@@ -3,7 +3,8 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonIcon, IonLabel, IonSegment, IonSegmentButton } from '@ionic/angular/standalone';
-import { DriverApiService, DriverJob } from '../services/driver-api.service';
+import { DriverJob } from '../services/driver-api.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverStateService } from '../services/driver-state.service';
 import { OfflineSyncService } from '../services/offline-sync.service';
 import { LoaderComponent } from '../shared/loader.component';
@@ -134,7 +135,7 @@ export class JobsPage {
   ];
   activeFilter: JobFilter = 'active';
 
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   private readonly state = inject(DriverStateService);
   private readonly offlineSync = inject(OfflineSyncService);
   readonly jobs = signal<DriverJob[]>([]);
@@ -143,23 +144,26 @@ export class JobsPage {
 
   ionViewWillEnter(): void {
     void this.offlineSync.refreshPendingJobs();
+    void this.loadJobs();
+  }
+
+  private async loadJobs(): Promise<void> {
+    const cached = this.cache.jobs();
+    if (cached.length || this.cache.hydrated()) {
+      this.jobs.set(cached);
+      this.hasLoaded.set(true);
+      this.loading.set(false);
+      void this.cache.refreshIfOnline().then(() => this.jobs.set(this.cache.jobs()));
+      return;
+    }
     if (!(this.loading() && this.hasLoaded())) this.loading.set(true);
-    this.api.getJobs().subscribe({
-      next: jobs => {
-        void this.state.mergeJobsWithLocal(jobs).then(merged => {
-          this.jobs.set(merged);
-          this.hasLoaded.set(true);
-          this.loading.set(false);
-        });
-      },
-      error: () => {
-        void this.state.mergeJobsWithLocal([]).then(merged => {
-          this.jobs.set(merged);
-          this.hasLoaded.set(true);
-          this.loading.set(false);
-        });
-      },
-    });
+    await this.cache.refreshIfOnline();
+    const merged = this.cache.jobs().length
+      ? this.cache.jobs()
+      : await this.state.mergeJobsWithLocal([]);
+    this.jobs.set(merged);
+    this.hasLoaded.set(true);
+    this.loading.set(false);
   }
 
   isPendingSync(jobId: string): boolean {

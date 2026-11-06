@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { IonContent, IonCard, IonCardContent, IonItem, IonInput, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { LoaderComponent } from '../shared/loader.component';
 import { DriverAuthService } from '../services/driver-auth.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 import { ToastService } from '../services/toast.service';
 
 @Component({
@@ -42,6 +43,7 @@ export class LoginPage {
 
   constructor(
     private readonly auth: DriverAuthService,
+    private readonly cache: DriverCacheService,
     private readonly router: Router,
     private readonly toast: ToastService,
   ) {}
@@ -54,7 +56,7 @@ export class LoginPage {
     this.loading = true;
     try {
       await this.auth.login(this.identity, this.password);
-      this.loading = false;
+      await this.cache.hydrateAll();
       await this.router.navigateByUrl('/dashboard');
     } catch (err: unknown) {
       const failure = err as { error?: { message?: string }; message?: string };

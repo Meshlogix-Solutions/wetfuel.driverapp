@@ -8,6 +8,7 @@ import {
   OfflineDriverEvent,
 } from './driver-api.service';
 import { ConnectivityService } from './connectivity.service';
+import { DriverCacheService } from './driver-cache.service';
 import {
   isPendingUploadUrl,
   LocalJobRecord,
@@ -71,6 +72,7 @@ export class DriverStateService {
     private readonly connectivity: ConnectivityService,
     private readonly store: OfflineStoreService,
     private readonly offlineSync: OfflineSyncService,
+    private readonly cache: DriverCacheService,
   ) {}
 
   readonly selectedJob = signal<DriverJob | null>(null);
@@ -89,6 +91,7 @@ export class DriverStateService {
 
   async loadJob(jobId: string): Promise<DriverJob | null> {
     const local = await this.store.getLocalJob(jobId);
+    const cached = this.cache.getJob(jobId);
     if (this.connectivity.online()) {
       try {
         const serverJob = await firstValueFrom(this.api.getJob(jobId));
@@ -100,21 +103,23 @@ export class DriverStateService {
         this.pendingSync.set(local?.syncStatus === 'pending');
         return merged;
       } catch {
-        if (local) {
-          this.selectedJob.set(local.job);
+        const fallback = local?.job ?? cached;
+        if (fallback) {
+          this.selectedJob.set(fallback);
           this.restoreDraft(jobId);
-          this.pendingSync.set(local.syncStatus === 'pending');
-          return local.job;
+          this.pendingSync.set(local?.syncStatus === 'pending');
+          return fallback;
         }
         this.selectedJob.set(null);
         return null;
       }
     }
-    if (local) {
-      this.selectedJob.set(local.job);
+    const offlineJob = local?.job ?? cached;
+    if (offlineJob) {
+      this.selectedJob.set(offlineJob);
       this.restoreDraft(jobId);
-      this.pendingSync.set(local.syncStatus === 'pending');
-      return local.job;
+      this.pendingSync.set(local?.syncStatus === 'pending');
+      return offlineJob;
     }
     this.selectedJob.set(null);
     return null;
@@ -156,6 +161,10 @@ export class DriverStateService {
 
   connectMeter(): void {
     this.meterConnected.set(true);
+  }
+
+  disconnectMeter(): void {
+    this.meterConnected.set(false);
   }
 
   async setVehicle(vehicleId: string): Promise<boolean> {
@@ -371,6 +380,7 @@ export class DriverStateService {
       vehicleId: vehicleId ?? existing?.vehicleId,
       updatedAt: new Date().toISOString(),
     });
+    await this.cache.upsertJob(job);
     if (syncStatus === 'pending') {
       this.pendingSync.set(true);
       await this.offlineSync.refreshPendingJobs();
@@ -378,10 +388,14 @@ export class DriverStateService {
   }
 
   private async fetchActiveShift() {
+    const cached = this.cache.activeShift();
+    if (!this.connectivity.online()) return cached;
     try {
-      return await firstValueFrom(this.api.getActiveShift());
+      const shift = await firstValueFrom(this.api.getActiveShift());
+      await this.cache.setActiveShift(shift);
+      return shift;
     } catch {
-      return null;
+      return cached;
     }
   }
 

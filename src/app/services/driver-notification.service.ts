@@ -1,8 +1,8 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { filter, firstValueFrom, forkJoin } from 'rxjs';
-import { DriverApiService } from './driver-api.service';
+import { filter } from 'rxjs';
 import { DriverAuthService } from './driver-auth.service';
+import { DriverCacheService } from './driver-cache.service';
 
 export interface DriverNotification {
   id: string;
@@ -15,7 +15,7 @@ export interface DriverNotification {
 
 @Injectable({ providedIn: 'root' })
 export class DriverNotificationService {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   private readonly auth = inject(DriverAuthService);
   private readIds = new Set<string>();
   private refreshInFlight: Promise<void> | null = null;
@@ -36,10 +36,14 @@ export class DriverNotificationService {
 
   private async load(): Promise<void> {
     try {
-      const { jobs, profile } = await firstValueFrom(forkJoin({
-        jobs: this.api.getJobs(),
-        profile: this.api.getCurrentDriver(),
-      }));
+      if (!this.cache.hydrated()) {
+        await this.cache.loadFromDisk();
+      }
+      if (!this.cache.jobs().length && !this.cache.profile()) {
+        await this.cache.refreshIfOnline();
+      }
+      const jobs = this.cache.jobs();
+      const profile = this.cache.profile();
       const items: DriverNotification[] = [
         ...jobs.filter(job => job.status === 'assigned').map(job => {
           const id = `job:${job.id}`;
@@ -52,7 +56,7 @@ export class DriverNotificationService {
             unread: !this.readIds.has(id),
           };
         }),
-        ...profile.certifications.filter(item => item.status !== 'valid').map(certification => {
+        ...(profile?.certifications ?? []).filter(item => item.status !== 'valid').map(certification => {
           const id = `certification:${certification.id}:${certification.expiryDate}`;
           return {
             id,
@@ -65,7 +69,7 @@ export class DriverNotificationService {
       ];
       this.items.set(items);
     } catch {
-      // Preserve the last known count if a background refresh cannot reach the API.
+      // Preserve the last known count if cache cannot be read.
     }
   }
 

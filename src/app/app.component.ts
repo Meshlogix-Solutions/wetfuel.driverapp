@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { DriverCacheService } from './services/driver-cache.service';
 import { DriverLocationTrackingService } from './services/driver-location-tracking.service';
 import { OfflineSyncService } from './services/offline-sync.service';
 import { addIcons } from 'ionicons';
@@ -11,7 +12,7 @@ import {
   personOutline, timeOutline, wifiOutline, cloudOfflineOutline, callOutline,
   carOutline, warningOutline, cloudOutline, locationOutline, shieldCheckmarkOutline,
   checkmarkCircleOutline, waterOutline, lockClosedOutline, shirtOutline, cameraOutline,
-  navigateOutline, bluetoothOutline, clipboardOutline, helpCircleOutline, cardOutline,
+  navigateOutline, bluetoothOutline, clipboardOutline, helpCircleOutline, cardOutline, searchOutline,
   medkitOutline, chevronForwardOutline, logOutOutline, closeOutline, flameOutline,
   eyeOutline, eyeOffOutline
 } from 'ionicons/icons';
@@ -26,9 +27,11 @@ export class AppComponent {
   private readonly router = inject(Router);
   private readonly locationTracking = inject(DriverLocationTrackingService);
   private readonly offlineSync = inject(OfflineSyncService);
+  private readonly cache = inject(DriverCacheService);
 
   constructor() {
     this.locationTracking.start();
+    this.cache.start();
     this.offlineSync.startAutoSync();
     // Dashboard is the app's home screen - the hardware back button should only ever exit
     // the app from there. Everywhere else it should step back within the app, never exit,
@@ -67,6 +70,7 @@ export class AppComponent {
       'camera-outline': cameraOutline,
       'navigate-outline': navigateOutline,
       'bluetooth-outline': bluetoothOutline,
+      'search-outline': searchOutline,
       'clipboard-outline': clipboardOutline,
       'help-circle-outline': helpCircleOutline,
       'card-outline': cardOutline,

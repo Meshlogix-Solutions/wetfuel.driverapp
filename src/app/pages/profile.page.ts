@@ -1,11 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonList, IonItem, IonLabel, IonButton, IonIcon } from '@ionic/angular/standalone';
 import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
-import { DriverApiService, DriverProfile, DriverShift } from '../services/driver-api.service';
 import { DriverAuthService } from '../services/driver-auth.service';
+import { DriverCacheService } from '../services/driver-cache.service';
 
 @Component({
   selector: 'app-profile',
@@ -64,15 +64,15 @@ import { DriverAuthService } from '../services/driver-auth.service';
   `
 })
 export class ProfilePage {
-  private readonly api = inject(DriverApiService);
+  private readonly cache = inject(DriverCacheService);
   private readonly auth = inject(DriverAuthService);
 
-  readonly profile = signal<DriverProfile | null>(null);
-  readonly activeShift = signal<DriverShift | null>(null);
+  readonly profile = this.cache.profile;
+  readonly activeShift = this.cache.activeShift;
 
-  constructor() {
-    this.api.getCurrentDriver().subscribe({ next: p => this.profile.set(p) });
-    this.api.getActiveShift().subscribe({ next: s => this.activeShift.set(s) });
+  ionViewWillEnter(): void {
+    if (!this.profile()) void this.cache.refreshIfOnline();
+    else void this.cache.refreshIfOnline();
   }
 
   get initials(): string {

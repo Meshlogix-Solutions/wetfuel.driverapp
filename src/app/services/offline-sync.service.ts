@@ -2,10 +2,10 @@ import { Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { DriverApiService, OfflineDriverEvent } from './driver-api.service';
 import { ConnectivityService } from './connectivity.service';
+import { DriverCacheService } from './driver-cache.service';
 import {
   isPendingUploadUrl,
   OfflineStoreService,
-  pendingUploadId,
   PENDING_UPLOAD_PREFIX,
   QueuedDriverEvent,
 } from './offline-store.service';
@@ -30,6 +30,7 @@ export class OfflineSyncService {
     private readonly api: DriverApiService,
     private readonly connectivity: ConnectivityService,
     private readonly store: OfflineStoreService,
+    private readonly cache: DriverCacheService,
   ) {}
 
   async refreshPendingJobs(): Promise<void> {
@@ -38,10 +39,14 @@ export class OfflineSyncService {
 
   startAutoSync(): void {
     this.connectivity.onChange(online => {
-      if (online) void this.flushAllPendingJobs();
+      if (online) {
+        void this.flushAllPendingJobs().then(() => this.cache.refreshIfOnline());
+      }
     });
     void this.refreshPendingJobs();
-    if (this.connectivity.online()) void this.flushAllPendingJobs();
+    if (this.connectivity.online()) {
+      void this.flushAllPendingJobs().then(() => this.cache.refreshIfOnline());
+    }
   }
 
   async flushJobs(jobIds: string[]): Promise<{
@@ -102,6 +107,7 @@ export class OfflineSyncService {
       await this.store.clearSyncedEventsForJob(jobId);
       localStorage.removeItem(`driver_delivery_draft:${jobId}`);
       await this.refreshPendingJobs();
+      void this.cache.refreshIfOnline();
       return result;
     } catch (error: unknown) {
       const failure = error as { error?: { message?: string }; message?: string };
