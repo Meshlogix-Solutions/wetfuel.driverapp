@@ -41,9 +41,6 @@ import { ToastService } from '../services/toast.service';
           <ion-icon slot="start" name="search-outline"></ion-icon>
           {{ meter.scanning() ? 'Scanning…' : 'Scan for register' }}
         </ion-button>
-        @if (!meter.devices().length) {
-          <ion-card class="wf-card warning-card"><ion-card-content><strong>Find the register</strong><p class="caption" style="margin:6px 0 0">On the LCR.iQ, leave Bluetooth on and set to LCP mode. Then tap Scan and choose the register. Start and stop the delivery on the register. This phone only reads the gallons.</p></ion-card-content></ion-card>
-        }
         @for (device of meter.devices(); track device.address) {
           <ion-card class="wf-card selection-card" (click)="connect(device)">
             <ion-card-content class="row">

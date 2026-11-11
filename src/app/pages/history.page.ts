@@ -73,6 +73,9 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
                 <p class="caption">{{ record.job.jobNumber }} · {{ record.job.equipmentName || record.job.siteName }}</p>
                 <p><strong>{{ record.job.fueledGallons || record.job.targetGallons }} gal</strong> · {{ statusLabel(record.job.status) }}</p>
               </ion-label>
+              <ion-button fill="clear" slot="end" [routerLink]="['/jobs', record.job.id]" (click)="$event.stopPropagation()" aria-label="View job details">
+                <ion-icon slot="icon-only" name="chevron-forward-outline"></ion-icon>
+              </ion-button>
             </ion-item>
           </ion-card-content>
         </ion-card>
@@ -101,7 +104,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
     <section>
       <h2 class="section-title">Recent deliveries</h2>
       @for (delivery of filteredDeliveries; track delivery.id) {
-        <ion-card class="wf-card">
+        <ion-card class="wf-card" [routerLink]="['/jobs', delivery.jobId]">
           <ion-card-content class="row">
             <div class="icon-tile"><ion-icon name="checkmark-circle-outline"></ion-icon></div>
             <div class="grow">
@@ -109,6 +112,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
               <p class="caption">{{ delivery.jobNumber }} · {{ delivery.equipmentName ?? 'Equipment' }}</p>
               <p><strong>{{ delivery.deliveredGallons }} gal</strong> · {{ delivery.completedAt | date:'short' }}</p>
             </div>
+            <ion-icon name="chevron-forward-outline"></ion-icon>
           </ion-card-content>
         </ion-card>
       }

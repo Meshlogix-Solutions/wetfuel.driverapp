@@ -135,26 +135,43 @@ export class OfflineSyncService {
 
   private async uploadPendingPhotosForJob(jobId: string): Promise<void> {
     const uploads = await this.store.getPendingUploadsForJob(jobId);
-    const urlMap = new Map<string, string>();
+    const saved: Array<{ id: string; pendingUrl: string; serverUrl: string; kind: 'meter' | 'equipment' }> = [];
     for (const upload of uploads) {
       const file = new File([upload.blob], upload.fileName, { type: upload.mimeType });
-      const url = await firstValueFrom(this.api.uploadFile(file));
-      urlMap.set(`${PENDING_UPLOAD_PREFIX}${upload.id}`, url);
-      await this.store.deletePendingUpload(upload.id);
+      const serverUrl = await firstValueFrom(this.api.uploadFile(file));
+      if (!isSavedPhotoLink(serverUrl)) throw new Error('The evidence photo did not return a saved link.');
+      saved.push({
+        id: upload.id,
+        pendingUrl: `${PENDING_UPLOAD_PREFIX}${upload.id}`,
+        serverUrl,
+        kind: upload.kind,
+      });
     }
-    if (!urlMap.size) return;
 
     const events = await this.store.getUnsyncedEventsForJob(jobId);
     for (const event of events) {
       if (event.eventType !== 'delivery.completed') continue;
       const payload = { ...event.payload };
       const proof = { ...(payload['proof'] as Record<string, unknown> | undefined) };
-      for (const [pendingUrl, serverUrl] of urlMap) {
-        if (proof['meterPhotoUrl'] === pendingUrl) proof['meterPhotoUrl'] = serverUrl;
-        if (proof['equipmentPhotoUrl'] === pendingUrl) proof['equipmentPhotoUrl'] = serverUrl;
+      for (const photo of saved) {
+        if (photo.kind === 'meter') proof['meterPhotoUrl'] = photo.serverUrl;
+        else if (photo.kind === 'equipment') proof['equipmentPhotoUrl'] = photo.serverUrl;
+        else if (proof['meterPhotoUrl'] === photo.pendingUrl) proof['meterPhotoUrl'] = photo.serverUrl;
+        else if (proof['equipmentPhotoUrl'] === photo.pendingUrl) proof['equipmentPhotoUrl'] = photo.serverUrl;
       }
       payload['proof'] = proof;
       await this.store.updateEventPayload(event.clientEventId, payload);
+    }
+
+    for (const photo of saved) await this.store.deletePendingUpload(photo.id);
+
+    const refreshed = await this.store.getUnsyncedEventsForJob(jobId);
+    for (const event of refreshed) {
+      if (event.eventType !== 'delivery.completed') continue;
+      const proof = event.payload['proof'] as Record<string, unknown> | undefined;
+      if (!isSavedPhotoLink(proof?.['meterPhotoUrl']) || !isSavedPhotoLink(proof?.['equipmentPhotoUrl'])) {
+        throw new Error('Both evidence photo links must be saved before this delivery can sync.');
+      }
     }
   }
 
@@ -196,4 +213,8 @@ export class OfflineSyncService {
     if (!url || !isPendingUploadUrl(url)) return url;
     return url;
   }
+}
+
+function isSavedPhotoLink(value: unknown): boolean {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
 }

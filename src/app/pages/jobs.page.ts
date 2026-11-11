@@ -60,7 +60,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
 
     @for (job of visibleJobs; track job.id) {
       <ion-card class="wf-card"
-        [routerLink]="job.status === 'completed' ? '/history' : ['/jobs', job.id]">
+        [routerLink]="['/jobs', job.id]">
         <ion-card-content>
           <div class="row-between">
             <div class="row-between" style="gap:8px;align-items:center">
@@ -76,7 +76,7 @@ type JobFilter = 'active' | 'upcoming' | 'completed' | 'all';
           <p class="caption">{{ job.siteAddress }}</p>
           <div class="detail-row">
             <span>{{ job.scheduledAt | date:'mediumDate' }} · {{ job.scheduledAt | date:'shortTime' }}</span>
-            <strong>{{ job.targetGallons | number:'1.0-0' }} gal</strong>
+            <strong>{{ job.status === 'completed' ? (job.fueledGallons ?? 0) : (job.targetGallons | number:'1.0-0') }} gal</strong>
           </div>
           <div class="row-between" style="padding-top:10px">
             <span class="caption">

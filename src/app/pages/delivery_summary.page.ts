@@ -66,6 +66,10 @@ export class DeliverySummaryPage {
       return;
     }
     const draft = this.state.deliveryDraft();
+    if (!draft.meterPhotoUrl || !draft.equipmentPhotoUrl) {
+      void this.toast.error('Take the meter photo and the equipment photo before completing this delivery.');
+      return;
+    }
     if (draft.startingTotalizer != null && draft.endingTotalizer != null) {
       const metered = draft.endingTotalizer - draft.startingTotalizer;
       if (draft.endingTotalizer < draft.startingTotalizer || Math.abs(metered - deliveredGallons) > 0.1) {

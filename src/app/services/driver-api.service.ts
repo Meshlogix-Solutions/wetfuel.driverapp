@@ -59,6 +59,18 @@ export interface DriverJob {
   safetyNote?: string;
   latitude?: number;
   longitude?: number;
+  delivery?: DriverJobDelivery;
+}
+
+export interface DriverJobDelivery {
+  deliveredGallons: number;
+  startingTotalizer?: number;
+  endingTotalizer?: number;
+  notes?: string;
+  meterPhotoUrl?: string;
+  equipmentPhotoUrl?: string;
+  completedAt: string;
+  vehicleName?: string;
 }
 
 export interface DriverShift {
