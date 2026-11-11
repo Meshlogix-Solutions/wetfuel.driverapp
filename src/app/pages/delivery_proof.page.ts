@@ -12,7 +12,7 @@ import { ToastService } from '../services/toast.service';
   standalone: true,
   imports: [FormsModule, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonItem, IonInput, IonTextarea, IonCheckbox, IonLabel, IonButton, IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonContent],
   template: `
-    <wf-mobile-shell title="Delivery proof" [subtitle]="state.deliveredGallons() + ' gallons captured'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/fueling'">
+    <wf-mobile-shell title="Delivery proof" [subtitle]="deliveredGallons + ' gallons captured'" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '') + '/fueling'">
       <main class="screen-body stack">
         <ion-card class="wf-card soft-card"><ion-card-content><strong>Meter delivery saved</strong><p class="caption" style="margin:4px 0 0">Upload both required photos and enter totalizers when available.</p></ion-card-content></ion-card>
         <section>
@@ -65,7 +65,7 @@ import { ToastService } from '../services/toast.service';
             <ion-item><ion-input label="Starting totalizer" labelPlacement="stacked" type="number" [(ngModel)]="startingTotalizer"></ion-input></ion-item>
             <ion-item><ion-input label="Ending totalizer" labelPlacement="stacked" type="number" [(ngModel)]="endingTotalizer"></ion-input></ion-item>
           </div>
-          <ion-item><ion-input label="Delivered volume" labelPlacement="stacked" [value]="state.deliveredGallons() + ' gallons'" [readonly]="true"></ion-input></ion-item>
+          <ion-item><ion-input label="Delivered volume" labelPlacement="stacked" [value]="deliveredGallons + ' gallons'" [readonly]="true"></ion-input></ion-item>
           @if (!validMeter) { <p style="color:var(--ion-color-danger)">Enter both totalizers and make sure their difference matches the delivered gallons.</p> }
         </ion-card-content></ion-card>
         <ion-card class="wf-card"><ion-card-content>
@@ -142,20 +142,23 @@ export class DeliveryProofPage implements OnInit {
     private readonly toast: ToastService,
   ) {}
   async ngOnInit(): Promise<void> {
-    const draft = this.state.deliveryDraft();
-    this.startingTotalizer = draft.startingTotalizer;
-    this.endingTotalizer = draft.endingTotalizer;
-    this.notes = draft.notes ?? this.notes;
-    this.meterStoredUrl = draft.meterPhotoUrl ?? '';
-    this.equipmentStoredUrl = draft.equipmentPhotoUrl ?? '';
+    const proof = this.state.selectedJob()?.proof;
+    this.startingTotalizer = proof?.startingTotalizer;
+    this.endingTotalizer = proof?.endingTotalizer;
+    this.notes = proof?.notes ?? this.notes;
+    this.meterStoredUrl = proof?.meterPhotoUrl ?? '';
+    this.equipmentStoredUrl = proof?.equipmentPhotoUrl ?? '';
     this.meterPhotoUrl = await this.state.resolvePhotoUrl(this.meterStoredUrl);
     this.equipmentPhotoUrl = await this.state.resolvePhotoUrl(this.equipmentStoredUrl);
+  }
+  get deliveredGallons(): number {
+    return Number(this.state.selectedJob()?.fueledGallons ?? 0);
   }
   get validMeter(): boolean {
     if (this.startingTotalizer == null && this.endingTotalizer == null) return true;
     if (this.startingTotalizer == null || this.endingTotalizer == null) return false;
     return this.endingTotalizer >= this.startingTotalizer
-      && Math.abs((this.endingTotalizer - this.startingTotalizer) - this.state.deliveredGallons()) <= 0.1;
+      && Math.abs((this.endingTotalizer - this.startingTotalizer) - this.deliveredGallons) <= 0.1;
   }
   get canReview(): boolean {
     return !!this.meterPhotoUrl && !!this.equipmentPhotoUrl && this.safe && this.notified && this.validMeter && !this.uploading;
@@ -214,7 +217,16 @@ export class DeliveryProofPage implements OnInit {
     const job = this.state.selectedJob();
     if (!job || !this.canReview) return;
     this.saveDraft();
-    if (!(await this.state.updateJob(job.id, 'proof_submitted'))) return;
+    if (!(await this.state.updateJob(job.id, 'proof_submitted', {
+      startingTotalizer: this.startingTotalizer,
+      endingTotalizer: this.endingTotalizer,
+      notes: this.notes,
+      meterPhotoUrl: this.meterStoredUrl,
+      equipmentPhotoUrl: this.equipmentStoredUrl,
+    }))) {
+      void this.toast.error(this.state.consumeSyncError('Delivery proof could not be saved.'));
+      return;
+    }
     void this.router.navigate(['/jobs', job.id, 'delivery-summary']);
   }
 

@@ -78,11 +78,11 @@ export class PreTripPage {
     }
     const checklist = Object.fromEntries(this.items.map((item, index) => [item[0], this.checks[index]]));
     if (!(await this.state.submitInspection(this.jobId, vehicleId, checklist, this.notes))) {
-      void this.toast.error(this.state.syncError() || 'The checklist could not be submitted.');
+      void this.toast.error(this.state.consumeSyncError('The checklist could not be submitted.'));
       return;
     }
     if (!(await this.state.updateJob(this.jobId, 'started', { vehicleId }))) {
-      void this.toast.error(this.state.syncError() || 'The job could not be started.');
+      void this.toast.error(this.state.consumeSyncError('The job could not be started.'));
       return;
     }
     void this.router.navigate(['/jobs', this.jobId, 'route-map']);

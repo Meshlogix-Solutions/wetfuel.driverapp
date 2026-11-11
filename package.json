@@ -7,6 +7,7 @@
     "build": "ng build",
     "test": "ng test",
     "cap:sync": "npx cap sync",
+    "assets:android": "npx @capacitor/assets generate --android --iconBackgroundColor \"#000000\" --iconBackgroundColorDark \"#000000\" --splashBackgroundColor \"#000000\" --splashBackgroundColorDark \"#000000\"",
     "serve:ionic": "ionic serve --project=wetfuel-driver-ui",
     "postinstall": "patch-package"
   },
@@ -36,6 +37,7 @@
     "@angular/build": "^22.0.0",
     "@angular/cli": "^22.0.0",
     "@angular/compiler-cli": "^22.0.0",
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^8.0.0",
     "@ionic/angular-toolkit": "^12.3.0",
     "patch-package": "^8.0.1",

@@ -66,7 +66,6 @@ type EvidenceKind = 'overview' | 'closeup' | 'document';
     <ion-card class="wf-card"><ion-card-content>
       <ion-item lines="none" button="true" (click)="supervisorContacted=!supervisorContacted"><ion-checkbox slot="start" [checked]="supervisorContacted" (click)="$event.stopPropagation(); supervisorContacted=!supervisorContacted"></ion-checkbox><ion-label class="ion-text-wrap"><strong>Supervisor has been contacted</strong><p class="caption">Franchise admin will receive an urgent alert.</p></ion-label></ion-item>
     </ion-card-content></ion-card>
-    @if(state.syncError()){<ion-card class="wf-card danger-card"><ion-card-content><strong>Incident could not be submitted</strong><p class="caption" style="margin:6px 0 0">{{state.syncError()}}</p></ion-card-content></ion-card>}
     <ion-button class="wf-button" color="tertiary" expand="block" [disabled]="state.busy() || !!uploading" (click)="submit()">
       @if (state.busy()) { <wf-loader mode="button" /> }
       Submit incident report
@@ -158,7 +157,10 @@ export class IncidentPage {
       supervisorContacted: this.supervisorContacted,
       evidenceUrls: Object.values(this.evidence).filter(Boolean),
     });
-    if (!ok) return;
+    if (!ok) {
+      void this.toast.error(this.state.consumeSyncError('The incident could not be submitted.'));
+      return;
+    }
     void this.router.navigateByUrl('/dashboard');
   }
 }

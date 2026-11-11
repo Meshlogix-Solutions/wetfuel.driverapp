@@ -24,7 +24,7 @@ import { ToastService } from '../services/toast.service';
     </ion-card>
     <ion-card class="wf-card">
       <ion-card-content>
-        <div class="detail-row"><span>Delivered volume</span><strong>{{ state.deliveredGallons() || state.selectedJob()?.targetGallons || 0 }} gal</strong></div>
+        <div class="detail-row"><span>Delivered volume</span><strong>{{ deliveredGallons }} gal</strong></div>
         <div class="detail-row"><span>Fuel type</span><strong>{{ state.selectedJob()?.fuelType || '—' }}</strong></div>
         <div class="detail-row"><span>Site</span><strong>{{ state.selectedJob()?.siteName || '—' }}</strong></div>
       </ion-card-content>
@@ -33,7 +33,7 @@ import { ToastService } from '../services/toast.service';
       <ion-card-content>
         <div class="timeline">
           <div class="timeline-item"><strong>Arrived at site</strong><p class="caption">GPS arrival recorded</p></div>
-          <div class="timeline-item"><strong>Fueling completed</strong><p class="caption">{{ state.deliveredGallons() || state.selectedJob()?.targetGallons || 0 }} gallons</p></div>
+          <div class="timeline-item"><strong>Fueling completed</strong><p class="caption">{{ deliveredGallons }} gallons</p></div>
           <div class="timeline-item"><strong>Proof collected</strong><p class="caption">Delivery proof ready for sync</p></div>
         </div>
       </ion-card-content>
@@ -57,39 +57,43 @@ export class DeliverySummaryPage {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
+  get deliveredGallons(): number {
+    return Number(this.state.selectedJob()?.fueledGallons ?? 0);
+  }
+
   async complete(): Promise<void> {
     const job = this.state.selectedJob();
     if (!job) return;
-    const deliveredGallons = this.state.deliveredGallons();
+    const deliveredGallons = this.deliveredGallons;
+    const proof = job.proof;
     if (!deliveredGallons) {
       void this.toast.error('Delivered volume was not captured. Go back to fueling and re-enter it.');
       return;
     }
-    const draft = this.state.deliveryDraft();
-    if (!draft.meterPhotoUrl || !draft.equipmentPhotoUrl) {
+    if (!proof?.meterPhotoUrl || !proof?.equipmentPhotoUrl) {
       void this.toast.error('Take the meter photo and the equipment photo before completing this delivery.');
       return;
     }
-    if (draft.startingTotalizer != null && draft.endingTotalizer != null) {
-      const metered = draft.endingTotalizer - draft.startingTotalizer;
-      if (draft.endingTotalizer < draft.startingTotalizer || Math.abs(metered - deliveredGallons) > 0.1) {
+    if (proof.startingTotalizer != null && proof.endingTotalizer != null) {
+      const metered = proof.endingTotalizer - proof.startingTotalizer;
+      if (proof.endingTotalizer < proof.startingTotalizer || Math.abs(metered - deliveredGallons) > 0.1) {
         void this.toast.error(`Delivered volume (${deliveredGallons} gal) doesn't match the meter totalizer difference (${metered} gal). Go back and correct the totalizers or delivered volume.`);
         return;
       }
     }
     const ok = await this.state.completeDelivery(job.id, deliveredGallons, {
-      startingTotalizer: draft.startingTotalizer,
-      endingTotalizer: draft.endingTotalizer,
-      notes: draft.notes,
+      startingTotalizer: proof.startingTotalizer,
+      endingTotalizer: proof.endingTotalizer,
+      notes: proof.notes,
       proof: {
-        meterPhotoCaptured: draft.meterPhotoCaptured,
-        equipmentPhotoCaptured: draft.equipmentPhotoCaptured,
-        meterPhotoUrl: draft.meterPhotoUrl,
-        equipmentPhotoUrl: draft.equipmentPhotoUrl,
+        meterPhotoCaptured: true,
+        equipmentPhotoCaptured: true,
+        meterPhotoUrl: proof.meterPhotoUrl,
+        equipmentPhotoUrl: proof.equipmentPhotoUrl,
       },
     });
     if (!ok) {
-      void this.toast.error(this.state.syncError() || 'The delivery could not be completed.');
+      void this.toast.error(this.state.consumeSyncError('The delivery could not be completed.'));
       return;
     }
     if (this.state.pendingSync()) {

@@ -5,6 +5,7 @@ import { IonButton, IonCard, IonCardContent, IonIcon } from '@ionic/angular/stan
 import { DriverVehicle } from '../services/driver-api.service';
 import { DriverCacheService } from '../services/driver-cache.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { ToastService } from '../services/toast.service';
 import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
@@ -47,6 +48,7 @@ export class VehiclePage {
   readonly state = inject(DriverStateService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly vehicles = signal<DriverVehicle[]>([]);
   readonly loading = signal(true);
   readonly loadError = signal('');
@@ -76,7 +78,10 @@ export class VehiclePage {
   async confirm(): Promise<void> {
     const vehicle = this.vehicles().find(item => item.id === this.selected);
     if (!vehicle || !this.jobId) return;
-    if (!(await this.state.setVehicle(vehicle.id))) return;
+    if (!(await this.state.setVehicle(vehicle.id))) {
+      void this.toast.error(this.state.consumeSyncError('The vehicle could not be confirmed.'));
+      return;
+    }
     void this.router.navigate(['/jobs', this.jobId, 'pre-job-checklist']);
   }
 

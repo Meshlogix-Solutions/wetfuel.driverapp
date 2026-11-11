@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { AlertController, IonButton, IonCard, IonCardContent, IonCheckbox, IonIcon, IonItem, IonLabel } from '@ionic/angular/standalone';
 import { DriverGeolocationService } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { OfflineSyncService } from '../services/offline-sync.service';
 import { ToastService } from '../services/toast.service';
 import { ArrivalLocationMapComponent } from '../shared/arrival-location-map.component';
 import { LoaderComponent } from '../shared/loader.component';
@@ -54,6 +55,7 @@ export class ArrivalPage {
     private readonly router: Router,
     private readonly toast: ToastService,
     private readonly alerts: AlertController,
+    private readonly sync: OfflineSyncService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
 
@@ -95,10 +97,14 @@ export class ArrivalPage {
       });
       await alert.present();
       const result = await alert.onDidDismiss();
-      if (result.role !== 'confirm') return;
-      arrived = await this.state.updateJob(job.id, 'arrived', { ...location, confirmOutsideTerritory:true });
+      if (result.role !== 'confirm') { this.state.syncError.set(''); return; }
+      await this.sync.confirmOutsideArrival(job.id);
+      const retry = await this.sync.flushJob(job.id);
+      arrived = retry.success;
+      if (arrived) this.state.syncError.set('');
+      else this.state.syncError.set(retry.error ?? 'Arrival could not be confirmed.');
     }
-    if (!arrived) { void this.toast.error(this.state.syncError() || 'Arrival could not be confirmed.'); return; }
+    if (!arrived) { void this.toast.error(this.state.consumeSyncError('Arrival could not be confirmed.')); return; }
     this.state.clearPendingArrivalLocation(job.id);
     void this.router.navigate(['/jobs', job.id, 'qr-scanner']);
   }

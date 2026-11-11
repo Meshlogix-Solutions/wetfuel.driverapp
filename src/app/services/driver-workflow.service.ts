@@ -40,7 +40,10 @@ export class DriverWorkflowService {
       });
       await alert.present();
       const result = await alert.onDidDismiss();
-      if (result.role !== 'confirm') return false;
+      if (result.role !== 'confirm') {
+        this.state.syncError.set('');
+        return false;
+      }
       started = await this.state.clockIn(undefined, location?.latitude, location?.longitude, location?.accuracyMeters, true);
     }
     if (started) {
@@ -54,7 +57,7 @@ export class DriverWorkflowService {
         this.state.syncError.set('');
         return true;
       }
-      void this.toast.error(this.state.syncError() || 'The shift could not be started.');
+      void this.toast.error(this.state.consumeSyncError('The shift could not be started.'));
     }
     return started;
   }
@@ -102,7 +105,7 @@ export class DriverWorkflowService {
     }
 
     const selected = await this.state.setVehicle(vehicleId);
-    if (!selected) void this.toast.error(this.state.syncError() || 'The vehicle could not be selected.');
+    if (!selected) void this.toast.error(this.state.consumeSyncError('The vehicle could not be selected.'));
     else await this.cache.refreshIfOnline();
     return selected;
   }

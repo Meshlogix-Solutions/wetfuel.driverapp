@@ -41,6 +41,16 @@ import { ToastService } from '../services/toast.service';
           <ion-icon slot="start" name="search-outline"></ion-icon>
           {{ meter.scanning() ? 'Scanning…' : 'Scan for register' }}
         </ion-button>
+        <ion-card class="wf-card selection-card" (click)="connectTest()">
+          <ion-card-content class="row">
+            <div class="icon-tile"><ion-icon name="bluetooth-outline"></ion-icon></div>
+            <div class="grow">
+              <h3>Test Bluetooth</h3>
+              <p class="caption">Sample reading for testing. No register required.</p>
+            </div>
+            <strong>Select</strong>
+          </ion-card-content>
+        </ion-card>
         @for (device of meter.devices(); track device.address) {
           <ion-card class="wf-card selection-card" (click)="connect(device)">
             <ion-card-content class="row">
@@ -107,6 +117,10 @@ export class MeterPage {
     } catch (error) {
       void this.toast.error(meterError(error));
     }
+  }
+
+  connectTest(): void {
+    this.meter.connectTestMeter();
   }
 
   async connect(device: NearbyMeter): Promise<void> {

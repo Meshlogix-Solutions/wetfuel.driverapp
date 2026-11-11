@@ -69,7 +69,7 @@ export class ClockInPage {
       });
       await alert.present();
       const result=await alert.onDidDismiss();
-      if(result.role!=='confirm'){ this.submitting=false; return; }
+      if(result.role!=='confirm'){ this.state.syncError.set(''); this.submitting=false; return; }
       clockedIn=await this.state.clockIn(undefined,this.latitude,this.longitude,this.accuracyMeters,true);
     }
     this.submitting=false;
@@ -77,6 +77,6 @@ export class ClockInPage {
       const warning=this.state.syncWarnings()[0];
       if(warning)await this.toast.warning(warning.message);
       void this.router.navigateByUrl('/dashboard');
-    }else void this.toast.error(this.state.syncError()||'Clock-in could not be completed.');
+    }else void this.toast.error(this.state.consumeSyncError('Clock-in could not be completed.'));
   }
 }

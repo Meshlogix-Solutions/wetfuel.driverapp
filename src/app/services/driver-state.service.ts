@@ -83,6 +83,12 @@ export class DriverStateService {
   readonly deliveryDraft = signal<DeliveryDraft>(EMPTY_DRAFT);
   readonly busy = signal(false);
   readonly syncError = signal('');
+
+  consumeSyncError(fallback: string): string {
+    const message = this.syncError().trim() || fallback;
+    this.syncError.set('');
+    return message;
+  }
   readonly syncWarnings = signal<Array<{ code: string; message: string }>>([]);
   readonly pendingArrivalLocation = signal<PendingArrivalLocation | null>(null);
   readonly lastSyncAt = signal<string | null>(null);
@@ -420,6 +426,12 @@ export class DriverStateService {
     localStorage.removeItem(this.draftStorageKey(jobId));
   }
 
+  private optionalDraftNumber(value: unknown): number | undefined {
+    if (value == null || value === '') return undefined;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : undefined;
+  }
+
   private async send(
     eventType: string,
     payload: Record<string, unknown>,
@@ -456,6 +468,15 @@ export class DriverStateService {
           if (eventType === 'job.fueled' && payload['deliveredGallons']) {
             updated.fueledGallons = Number(payload['deliveredGallons']);
           }
+          if (eventType === 'job.proof_submitted') {
+            updated.proof = {
+              startingTotalizer: this.optionalDraftNumber(payload['startingTotalizer']),
+              endingTotalizer: this.optionalDraftNumber(payload['endingTotalizer']),
+              notes: typeof payload['notes'] === 'string' ? payload['notes'] : undefined,
+              meterPhotoUrl: typeof payload['meterPhotoUrl'] === 'string' ? payload['meterPhotoUrl'] : undefined,
+              equipmentPhotoUrl: typeof payload['equipmentPhotoUrl'] === 'string' ? payload['equipmentPhotoUrl'] : undefined,
+            };
+          }
           await this.cacheJob(updated, 'pending', payload['vehicleId'] as string | undefined);
           this.selectedJob.set(updated);
         }
@@ -476,10 +497,24 @@ export class DriverStateService {
         this.lastSyncAt.set(new Date().toISOString());
         this.syncWarnings.set(result.warnings.map(({ code, message }) => ({ code, message })));
         if (!result.success) {
+          const outsideSite = this.offlineSync.isArrivalGeofenceError(result.error);
+          if (outsideSite && eventType !== 'job.arrived' && aggregateId) {
+            await this.offlineSync.confirmOutsideArrival(aggregateId);
+            const retry = await this.offlineSync.flushJob(aggregateId);
+            if (retry.success) {
+              this.lastSyncAt.set(new Date().toISOString());
+              this.syncWarnings.set(retry.warnings.map(({ code, message }) => ({ code, message })));
+              this.pendingSync.set(false);
+              this.savedLocally.set(false);
+              this.syncError.set('');
+              if (options?.flushImmediately) this.clearDraft(aggregateId);
+              return true;
+            }
+          }
           this.syncError.set(result.error ?? 'Sync failed. Your work is saved and will retry when online.');
           this.pendingSync.set(true);
           await this.offlineSync.refreshPendingJobs();
-          if (this.offlineSync.isArrivalGeofenceError(result.error)) return false;
+          if (outsideSite) return false;
           return options?.flushImmediately ? offlineCapable : true;
         }
         this.pendingSync.set(false);

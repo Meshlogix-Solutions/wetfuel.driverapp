@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { IonButton, IonCard, IonCardContent, IonRange } from '@ionic/angular/standalone';
 import { BluetoothMeterService } from '../services/bluetooth-meter.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { ToastService } from '../services/toast.service';
 import { LoaderComponent } from '../shared/loader.component';
 import { MobileShellComponent } from '../shared/mobile-shell.component';
 
@@ -82,6 +83,7 @@ export class FuelingPage {
     readonly state: DriverStateService,
     readonly meter: BluetoothMeterService,
     private readonly router: Router,
+    private readonly toast: ToastService,
   ) {
     this.gallons = Number(state.deliveredGallons() || 0);
   }
@@ -107,7 +109,10 @@ export class FuelingPage {
     const job = this.state.selectedJob();
     if (!job || !this.canStop) return;
     const delivered = this.shownGallons;
-    if (!(await this.state.updateJob(job.id, 'fueled', { deliveredGallons: delivered }))) return;
+    if (!(await this.state.updateJob(job.id, 'fueled', { deliveredGallons: delivered }))) {
+      void this.toast.error(this.state.consumeSyncError('The delivery could not be recorded.'));
+      return;
+    }
     this.fueling = false;
     this.state.setDeliveryVolume(delivered);
     void this.router.navigate(['/jobs', job.id, 'delivery-proof']);

@@ -2,6 +2,36 @@
 
 Auto-appended by `build-apk.sh` each time it builds successfully. Newest entries at the top.
 
+## Build 2026-11-11 18:45:37
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Size: 29M
+- App version: 1.0.0
+
+
+## Build 2026-11-11 18:27:18
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Size: 29M
+- App version: 1.0.0
+
+
+## Build 2026-11-11 15:46:22
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Size: 29M
+- App version: 1.0.0
+
+
+## Build 2026-11-11 15:23:32
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Size: 29M
+- App version: 1.0.0
+
+
+## Build 2026-11-11 14:35:45
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Size: 28M
+- App version: 1.0.0
+
+
 ## Build 2026-11-06 19:41:40
 - APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 - Size: 28M

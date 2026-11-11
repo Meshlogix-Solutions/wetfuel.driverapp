@@ -53,6 +53,7 @@ export class BluetoothMeterService {
 
   private address = '';
   private meterNode = 250;
+  private testConnection = false;
   private session: LcpSession | null = null;
   private rx = new Uint8Array(0);
   private timer?: ReturnType<typeof setInterval>;
@@ -117,9 +118,31 @@ export class BluetoothMeterService {
     }
   }
 
+  connectTestMeter(): void {
+    this.stopPolling();
+    this.testConnection = true;
+    this.address = '';
+    this.session = null;
+    this.rx = new Uint8Array(0);
+    this.zone.run(() => {
+      this.connected.set(true);
+      this.deviceName.set('Test Bluetooth');
+      this.deviceAddress.set('TEST-BT-0001');
+      this.productName.set('Test meter');
+      this.decimals.set(1);
+      this.gross.set(1);
+      this.net.set(1);
+      this.deliveryStatus.set('completed');
+      this.detail.set('Test reading, 1.0 gal');
+      this.state.connectMeter();
+    });
+  }
+
   async disconnect(): Promise<void> {
     this.stopPolling();
     const address = this.address;
+    const testConnection = this.testConnection;
+    this.testConnection = false;
     this.address = '';
     this.session = null;
     this.rx = new Uint8Array(0);
@@ -134,7 +157,7 @@ export class BluetoothMeterService {
       this.detail.set('Connect the register to start reading.');
       this.state.disconnectMeter();
     });
-    if (!address || !this.android) return;
+    if (!address || !this.android || testConnection) return;
     try {
       await BluetoothSerial.disconnect({ address });
     } catch {

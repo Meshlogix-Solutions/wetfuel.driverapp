@@ -11,13 +11,7 @@ const STATUS_ROUTE: Record<string, string> = {
   proof_submitted: 'delivery-summary',
 };
 
-// delivery-summary reads deliveredGallons/deliveryDraft from in-memory signals that are only
-// populated by going through delivery-proof in this session - they're never persisted server
-// side until the final completeDelivery call. If those signals are empty (app reload, or
-// landing on a proof_submitted job without visiting delivery-proof first), delivery-summary has
-// nothing to show, so route to delivery-proof instead where the driver can re-enter/re-submit.
-function resolveTarget(status: string, state: DriverStateService): string {
-  if (status === 'proof_submitted' && !state.deliveredGallons()) return 'delivery-proof';
+function resolveTarget(status: string): string {
   return STATUS_ROUTE[status] ?? '';
 }
 
@@ -40,7 +34,7 @@ export const jobWorkflowGuard: CanActivateFn = async (route: ActivatedRouteSnaps
       return router.createUrlTree(['/history']);
     }
     if (job.status === 'cancelled') return router.createUrlTree(['/jobs', job.id]);
-    return router.createUrlTree(['/jobs', job.id, resolveTarget(job.status, state)]);
+    return router.createUrlTree(['/jobs', job.id, resolveTarget(job.status)]);
   }
 
   // Base /jobs/:jobId route (no statuses restriction): land directly on the page for
@@ -48,6 +42,6 @@ export const jobWorkflowGuard: CanActivateFn = async (route: ActivatedRouteSnaps
   // straight to the meter/fueling page. 'assigned' maps to '' (stay here) and
   // 'completed'/'cancelled' aren't in STATUS_ROUTE, so they fall through and stay on
   // job_details too.
-  const target = resolveTarget(job.status, state);
+  const target = resolveTarget(job.status);
   return target ? router.createUrlTree(['/jobs', job.id, target]) : true;
 };

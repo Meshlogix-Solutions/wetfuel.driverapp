@@ -105,7 +105,9 @@ export class OfflineSyncService {
       if (!result.success) return result;
       await this.markJobSynced(jobId);
       await this.store.clearSyncedEventsForJob(jobId);
-      localStorage.removeItem(`driver_delivery_draft:${jobId}`);
+      if (events.some(event => event.eventType === 'delivery.completed')) {
+        localStorage.removeItem(`driver_delivery_draft:${jobId}`);
+      }
       await this.refreshPendingJobs();
       void this.cache.refreshIfOnline();
       return result;
