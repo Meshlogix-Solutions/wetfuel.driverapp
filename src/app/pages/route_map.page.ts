@@ -1,25 +1,29 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, ViewChild } from '@angular/core';
+import { App } from '@capacitor/app';
+import type { PluginListenerHandle } from '@capacitor/core';
 import { Router, RouterLink } from '@angular/router';
 import { IonCard, IonCardContent, IonButton, IonIcon } from '@ionic/angular/standalone';
 import type { GeoJSONSource, Map as MapboxMap, Marker } from 'mapbox-gl/esm';
 import { environment } from '../../environments/environment';
 import { DriverGeolocationService, DriverPosition } from '../services/driver-geolocation.service';
 import { DriverStateService } from '../services/driver-state.service';
+import { ToastService } from '../services/toast.service';
 import { LoaderComponent } from '../shared/loader.component';
-import { MobileShellComponent } from '../shared/mobile-shell.component';
+import { MobileShellComponent, RefreshRequest } from '../shared/mobile-shell.component';
 
 @Component({
   selector: 'app-route-map',
   standalone: true,
   imports: [RouterLink, MobileShellComponent, LoaderComponent, IonCard, IonCardContent, IonButton, IonIcon],
   template: `
-<wf-mobile-shell title="Navigate to site" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber || '')" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '')">
+<wf-mobile-shell title="Navigate to site" [subtitle]="'Job ' + (state.selectedJob()?.jobNumber || '')" [backRoute]="'/jobs/' + (state.selectedJob()?.id || '')" [refreshable]="true" (refreshRequested)="refreshPage($event)">
   <main class="screen-body stack">
     <section class="route-map">
       <div #map class="route-map__canvas"></div>
       <svg class="planned-route-overlay" aria-hidden="true"><polyline #plannedRouteLine /></svg>
+      @if (!locationAllowed) { <div class="map-message">Allow location to see the route.</div> }
       @if (mapError) { <div class="map-message map-message--error">{{ mapError }}</div> }
-      @if (locating) { <div class="map-message"><wf-loader mode="inline" message="Finding your current location..." /></div> }
+      @if (locationAllowed && locating) { <div class="map-message"><wf-loader mode="inline" message="Finding your current location..." /></div> }
       <ion-card class="wf-card compact route-summary">
         <ion-card-content>
           <div class="row-between">
@@ -33,7 +37,7 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
     <ion-card class="wf-card">
       <ion-card-content class="row">
         <div class="icon-tile"><ion-icon name="navigate-outline"></ion-icon></div>
-        <div><strong>{{ nextInstruction || 'Follow the highlighted route' }}</strong><p class="caption">Route updates automatically as your location changes.</p></div>
+        <div><strong>{{ locationAllowed ? (nextInstruction || 'Follow the highlighted route') : 'Location permission' }}</strong><p class="caption">{{ locationAllowed ? 'Route updates automatically as your location changes.' : 'Allow location before the route is shown.' }}</p></div>
       </ion-card-content>
     </ion-card>
 
@@ -41,12 +45,12 @@ import { MobileShellComponent } from '../shared/mobile-shell.component';
       <ion-button class="wf-button wf-secondary" expand="block" [href]="mapsUrl" target="_blank" rel="noopener">Voice navigation</ion-button>
       <ion-button class="wf-button" expand="block" [disabled]="!latestPosition" (click)="openArrival()">
         @if (!latestPosition && locating) { <wf-loader mode="button" /> }
-        {{ latestPosition ? "I've arrived" : locating ? 'Getting location...' : 'Waiting for GPS' }}
+        {{ latestPosition ? "I've arrived" : !locationAllowed ? 'Allow location' : locating ? 'Getting location...' : 'Waiting for GPS' }}
       </ion-button>
     </div>
     @if (!latestPosition && locationError) {
       <p class="caption" style="color:var(--ion-color-danger);margin:0">{{ locationError }}</p>
-      <ion-button class="wf-button wf-secondary" expand="block" (click)="retryLocation()">Retry location</ion-button>
+      <ion-button class="wf-button wf-secondary" expand="block" (click)="retryLocation()">Turn location on</ion-button>
     }
     <ion-button class="wf-button" color="danger" fill="outline" expand="block" routerLink="/incident">Report route or safety issue</ion-button>
   </main>
@@ -67,7 +71,8 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   @ViewChild('map', { static: true }) private readonly mapElement!: ElementRef<HTMLDivElement>;
   @ViewChild('plannedRouteLine', { static: true }) private readonly plannedRouteLine!: ElementRef<SVGPolylineElement>;
 
-  locating = true;
+  locating = false;
+  locationAllowed = false;
   mapError = '';
   locationError = '';
   distanceMeters?: number;
@@ -91,6 +96,7 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   constructor(
     readonly state: DriverStateService,
     private readonly geo: DriverGeolocationService,
+    private readonly toast: ToastService,
     private readonly zone: NgZone,
     private readonly cdr: ChangeDetectorRef,
     private readonly router: Router,
@@ -102,10 +108,12 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   }
 
   get distanceLabel(): string {
+    if (!this.locationAllowed) return 'Location required';
     return this.distanceMeters == null ? 'Calculating route...' : `${(this.distanceMeters / 1609.344).toFixed(1)} miles`;
   }
 
   get durationLabel(): string {
+    if (!this.locationAllowed) return 'Allow location first';
     if (this.durationSeconds == null) return 'Waiting for route';
     const minutes = Math.max(1, Math.round(this.durationSeconds / 60));
     return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
@@ -119,9 +127,22 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
   }
 
-  async ngAfterViewInit(): Promise<void> {
-    this.startLocationWatch();
+  ionViewWillEnter(): void {
+    if (this.latestPosition || this.locating || this.requestingLocation) return;
+    void this.requestLocation();
+  }
 
+  async ngAfterViewInit(): Promise<void> {
+    this.resumeListener = await App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive || !this.waitingForLocationSetting) return;
+      this.waitingForLocationSetting = false;
+      void this.requestLocation();
+    });
+    if (!this.latestPosition && !this.locating && !this.requestingLocation) void this.requestLocation();
+  }
+
+  private async ensureMap(): Promise<void> {
+    if (this.map) return;
     const destination = this.destination();
     if (!environment.mapboxAccessToken) { this.mapError = 'Mapbox access token is not configured.'; return; }
     if (!destination) { this.mapError = 'The customer site does not have a map location.'; return; }
@@ -153,16 +174,70 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    void this.resumeListener?.remove();
     void this.geo.clearWatch(this.watchId);
     this.directionsRequest?.abort();
     this.resizeObserver?.disconnect();
     this.map?.remove();
   }
 
+  async refreshPage(request: RefreshRequest): Promise<void> {
+    try {
+      const jobId = this.state.selectedJob()?.id;
+      if (jobId) await this.state.loadJob(jobId);
+      this.lastRoutedPoint = undefined;
+      this.lastRouteAt = 0;
+      await this.requestLocation();
+    } finally {
+      request.complete();
+    }
+  }
+
   retryLocation(): void {
+    void this.geo.openLocationSettings().then(opened => {
+      if (opened) this.waitingForLocationSetting = true;
+      else void this.requestLocation();
+    });
+  }
+
+  private requestingLocation = false;
+  private waitingForLocationSetting = false;
+  private resumeListener?: PluginListenerHandle;
+
+  private async requestLocation(): Promise<void> {
+    if (this.requestingLocation) return;
+    this.requestingLocation = true;
     this.locationError = '';
-    this.locating = true;
-    this.startLocationWatch();
+    this.locating = false;
+    this.cdr.detectChanges();
+    let showSearch: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const allowed = await this.geo.ensurePermission();
+      if (!allowed) {
+        this.locationAllowed = false;
+        this.locationError = this.geo.friendlyError('denied');
+        void this.toast.error(this.locationError);
+        return;
+      }
+      this.locationAllowed = true;
+      this.cdr.detectChanges();
+      await this.ensureMap();
+      showSearch = setTimeout(() => {
+        this.locating = true;
+        this.cdr.detectChanges();
+      }, 700);
+      const position = await this.geo.promptForLocation();
+      this.updatePosition(position);
+      this.startLocationWatch();
+    } catch (error) {
+      this.locating = false;
+      this.locationError = this.geo.friendlyError(error);
+      void this.toast.error(this.locationError);
+    } finally {
+      if (showSearch) clearTimeout(showSearch);
+      this.requestingLocation = false;
+      this.cdr.detectChanges();
+    }
   }
 
   private startLocationWatch(): void {
@@ -170,8 +245,10 @@ export class RouteMapPage implements AfterViewInit, OnDestroy {
       void this.geo.watchPosition(
         position => this.zone.run(() => this.updatePosition(position)),
         message => this.zone.run(() => {
+          if (this.latestPosition) return;
           this.locating = false;
           this.locationError = message;
+          void this.toast.error(message);
           this.cdr.detectChanges();
         }),
       ).then(id => { this.watchId = id; });

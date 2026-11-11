@@ -101,7 +101,7 @@ export class DriverStateService {
     if (this.connectivity.online()) {
       try {
         const serverJob = await firstValueFrom(this.api.getJob(jobId));
-        const merged = this.mergeJob(serverJob, local);
+        const merged = this.withSavedProof(this.mergeJob(serverJob, local), jobId);
         await this.cacheJob(merged, local?.syncStatus ?? 'synced', local?.vehicleId);
         this.selectedJob.set(merged);
         this.restoreDraft(jobId);
@@ -109,7 +109,7 @@ export class DriverStateService {
         this.pendingSync.set(local?.syncStatus === 'pending');
         return merged;
       } catch {
-        const fallback = local?.job ?? cached;
+        const fallback = this.withSavedProof(local?.job ?? cached, jobId);
         if (fallback) {
           this.selectedJob.set(fallback);
           this.restoreDraft(jobId);
@@ -120,7 +120,7 @@ export class DriverStateService {
         return null;
       }
     }
-    const offlineJob = local?.job ?? cached;
+    const offlineJob = this.withSavedProof(local?.job ?? cached, jobId);
     if (offlineJob) {
       this.selectedJob.set(offlineJob);
       this.restoreDraft(jobId);
@@ -244,8 +244,9 @@ export class DriverStateService {
     }
     const ok = await this.send(`job.${action}`, payload, jobId);
     if (!ok) return false;
-    if (job && job.id === jobId) {
-      const updated = { ...job, status: action };
+    const current = this.selectedJob();
+    if (current && current.id === jobId) {
+      const updated = { ...current, status: action };
       if (action === 'fueled' && payload['deliveredGallons']) {
         updated.fueledGallons = Number(payload['deliveredGallons']);
       }
@@ -374,8 +375,32 @@ export class DriverStateService {
     if (!local) return serverJob;
     const serverRank = STATUS_RANK[serverJob.status] ?? 0;
     const localRank = STATUS_RANK[local.job.status] ?? 0;
-    if (local.syncStatus === 'pending' && localRank > serverRank) return local.job;
-    return serverJob;
+    const preferred = local.syncStatus === 'pending' && localRank > serverRank ? local.job : serverJob;
+    return this.withSavedProof(preferred, preferred.id, local.job.proof);
+  }
+
+  private withSavedProof<T extends DriverJob | null | undefined>(job: T, jobId: string, savedProof?: DriverJob['proof']): T {
+    if (!job) return job;
+    const draft = this.readDraft(jobId);
+    const proof = job.proof;
+    const meterPhotoUrl = proof?.meterPhotoUrl || savedProof?.meterPhotoUrl || draft.meterPhotoUrl;
+    const equipmentPhotoUrl = proof?.equipmentPhotoUrl || savedProof?.equipmentPhotoUrl || draft.equipmentPhotoUrl;
+    if (!meterPhotoUrl && !equipmentPhotoUrl) return job;
+    return {
+      ...job,
+      proof: {
+        startingTotalizer: proof?.startingTotalizer ?? savedProof?.startingTotalizer ?? draft.startingTotalizer,
+        endingTotalizer: proof?.endingTotalizer ?? savedProof?.endingTotalizer ?? draft.endingTotalizer,
+        notes: proof?.notes ?? savedProof?.notes ?? draft.notes,
+        meterPhotoUrl,
+        equipmentPhotoUrl,
+      },
+    } as T;
+  }
+
+  private readDraft(jobId: string): DeliveryDraft {
+    const raw = localStorage.getItem(this.draftStorageKey(jobId));
+    return raw ? JSON.parse(raw) as DeliveryDraft : EMPTY_DRAFT;
   }
 
   private async cacheJob(job: DriverJob, syncStatus: 'synced' | 'pending', vehicleId?: string): Promise<void> {
